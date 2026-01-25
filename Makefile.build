@@ -1,0 +1,35 @@
+include $(DIR)/Makefile
+
+CFLAGS += $(CONSTANTS-1)
+
+subout = $(subdirs-1:%=$(DIR)/%/output.o)
+subc = $(subdirs-1:%=$(DIR)/%/clean)
+obj = $(obj-1:%=$(DIR)/%)
+objs = $(subout) $(obj)
+
+.PHONY: build cleand $(subc)
+build: $(DIR)/output.o
+
+$(subc):
+	$(MAKE) -f Makefile.build cleand DIR=$(@D) ARCH=$(ARCH)
+
+cleand: $(subc)
+	@echo CLEAN $(DIR)
+	$(RM) $(obj) $(DIR)/output.o
+
+$(subout): 
+	$(MAKE) -f Makefile.build build DIR=$(@D) ARCH=$(ARCH)
+
+$(DIR)/output.o: $(objs)
+	@echo LD $@
+	$(CC) $(LDFLAGS) -Wl,-r -o $(DIR)/output.o $(objs)
+
+.SUFFIXES : .c .S .o
+
+%.o: %.c
+	@echo CC $@
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+%.o: %.S
+	@echo CC $@
+	@$(CC) $(CFLAGS) -c $< -o $@
