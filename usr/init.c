@@ -4,7 +4,7 @@ int
 main (void)
 {
 	int pid;
-	const char *args[3] = {"echo", "hello echo!", "hello!"};
+	const char *args[3] = {"echotest", "hello echo!", "SuperHello"};
 
 	for (;;) {
 		pid = fork();

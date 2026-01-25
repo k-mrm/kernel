@@ -18,6 +18,7 @@
 #include <printk.h>
 
 static LIST_HEAD(rq);
+static ROOT(proctree);
 static struct proc *kidle;
 static struct proc *initproc;
 static uint procidtable = 0;
@@ -90,7 +91,7 @@ ready(struct proc *p)
                 return;
         // Lock rq
         p->state = READY;
-	list_add(&rq, &p->rq);
+	list_append(&rq, &p->rq);
         // Unlock rq
 }
 
@@ -135,6 +136,8 @@ newproc(char *name, struct proc *parent, bool user, int (*pfunc) (void *arg), vo
 	inittree(&p->pn);
 	if (parent)
 		new_child(&parent->pn, &p->pn);
+	else
+		new_child(&proctree, &p->pn);
 
         strcpy(p->pname, name);
 
@@ -163,9 +166,11 @@ err:
 static void
 freeproc (struct proc *p)
 {
+	tree_node_delete(&p->pn);
+
         free(p->kstack);
         memset (p, sizeof *p, 0);
-        free (p);
+        free(p);
 }
 
 static void
@@ -256,7 +261,6 @@ exec (const char *path, const char **argv)
 		vmcodealloc(vm, phdr.p_memsz, flags);
 
 		size = fs->op->readi(elf, p, phdr.p_offset, phdr.p_filesz);
-		trace("exec copyin %p %d\n", phdr.p_vaddr, size);
 		copyin(vm, phdr.p_vaddr, p, size);
 	}
 
@@ -378,7 +382,7 @@ __wakeup(struct tree *t, void *chan)
 void
 wakeup(void *chan)
 {
-	tree_dfs(&initproc->pn, __wakeup, chan);
+	tree_dfs(&proctree, __wakeup, chan);
 }
 
 
@@ -423,8 +427,8 @@ wait(int *status)
                 return -1;
         }
 
-        while (wqempty (proc))
-                sleep (proc);
+        while (wqempty(proc))
+                sleep(proc);
 
         p = LIST_ENTRY(&proc->waitq, struct proc, wqn);
         list_delete(&p->wqn);
@@ -464,7 +468,7 @@ schedtail(void)
 void
 schedule (void)
 {
-        struct cpu *cpu = mycpu ();
+        struct cpu *cpu = mycpu();
         struct proc *prev = cpu->current;
         struct proc *next = nextproc(prev); 
         struct context *c;
@@ -476,8 +480,8 @@ schedule (void)
         next->cpu = cpu;
         running(next);
 
-        log ("cswitch: prev %p(%s) -> %p(%s)\n",
-             prev, prev ? prev->pname : "NULL", next, next->pname);
+        log ("cswitch: prev %p(%d, %s) -> %p(%d, %s) @%p\n",
+             prev, prev ? prev->procid : -1, prev ? prev->pname : "NULL", next, next->procid, next->pname, next->tf->rip);
 
         if (UNLIKELY(!prev)) {
                 // from kernel
@@ -492,6 +496,8 @@ schedule (void)
 
         prev = cswitch(c, &next->context, prev);
 
+	/*
         log ("cswitch returned: last:%s c:%s %d\n",
              prev ? prev->pname : "kernel", cpu->current->pname, interruptible());
+	     */
 }

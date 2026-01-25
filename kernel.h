@@ -87,12 +87,27 @@ initlist(struct list *head)
 }
 
 static inline void
+list_insert(struct list *n, struct list *prev, struct list *next)
+{
+	prev->next = n;
+	n->next = next;
+	n->prev = prev;
+	next->prev = n;
+}
+
+static inline void
 list_add(struct list *h, struct list *e)
 {
         e->next = h->next;
         h->next->prev = e;
         e->prev = h;
         h->next = e;
+}
+
+static inline void
+list_append(struct list *h, struct list *e)
+{
+	list_insert(e, h->prev, h);
 }
 
 static inline int
@@ -146,6 +161,12 @@ new_child(struct tree *t, struct tree *c)
 {
 	c->par = t;
 	list_add(&t->child, &c->cn);
+}
+
+static inline void
+tree_node_delete(struct tree *n)
+{
+	list_delete(&n->cn);
 }
 
 static inline void *

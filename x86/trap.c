@@ -261,7 +261,7 @@ trap (struct trapframe *tf)
         if (proc)
                 proc->tf = tf;
 
-        trace("trap from %d %d(err=0x%x) %p\n", tf->r15, tf->trapno, tf->errcode, tf->rip);
+        // trace("trap from %d %d(err=0x%x) %p\n", tf->r15, tf->trapno, tf->errcode, tf->rip);
         switch (tf->trapno)
         {
         case E_PF: x86pagefault (tf); break;
