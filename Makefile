@@ -41,6 +41,11 @@ objs-1 += module.o block.o fs.o ramdisk.o syscall.o
 objs-1 += driver/pci.o # driver/test.o driver/virtio-blk.o driver/virtio.o driver/virtqueue.o
 objs-1 += fs/ext2.o
 
+# userobject
+root = rootfs/
+ulib-1 += usr/syscalls.o
+uprgs += $(root)init $(root)echo
+
 QEMUOPTS = -smp $(NCPU) -m $(MEMSZ) -no-reboot
 QEMUOPTS += -device virtio-net-pci,bus=pci.0,disable-legacy=on,disable-modern=off
 QEMUOPTS += -device virtio-rng-pci,bus=pci.0,disable-legacy=on,disable-modern=off
@@ -55,7 +60,12 @@ QEMUOPTS += -device virtio-rng-pci,bus=pci.0,disable-legacy=on,disable-modern=of
 	@echo CC $@
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-fs.img:
+$(root)%: usr/%.o $(ulib-1)
+	@mkdir -p $(root)
+	$(LD) -g -nostdlib -static --no-relax -N -e main -Ttext 0x1000 -o $@ $^
+	cp README.md $(root)
+
+fs.img: $(uprgs)
 	dd if=/dev/zero of=fs.img count=10000
 	mkfs -t ext2 -d rootfs/ -v fs.img -b 1024
 

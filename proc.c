@@ -253,9 +253,12 @@ exec (const char *path, const char **argv)
                 flags |= phdr.p_flags & PF_X ? pexecutable () | preadonly () : 0;
                 flags |= phdr.p_flags & PF_W ? pwritable () : 0;
 
-                size += fs->op->readi(elf, p, phdr.p_offset, phdr.p_filesz);
-                mappages (vm, phdr.p_vaddr, V2P (p), PAGESIZE, pnormal () | puser () | flags, false);
-        }
+		vmcodealloc(vm, phdr.p_memsz, flags);
+
+		size = fs->op->readi(elf, p, phdr.p_offset, phdr.p_filesz);
+		trace("exec copyin %p %d\n", phdr.p_vaddr, size);
+		copyin(vm, phdr.p_vaddr, p, size);
+	}
 
         // setup arguments
         for (; argv && argv[uargc]; uargc++) {
@@ -415,7 +418,7 @@ wait(int *status)
         struct proc *p;
         int pid;
 
-        if (nchild(&proc->pn)) {
+        if (!nchild(&proc->pn)) {
                 // no child
                 return -1;
         }

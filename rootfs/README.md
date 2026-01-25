@@ -1,30 +1,9 @@
 # os2
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
-akazakari test akazakari test
+
+experimental os
+
+## Build
+
+```
+make qemu-iso
+```
