@@ -13,8 +13,6 @@ LDFLAGS := -g -nostdlib -Wl,--build-id=none -static --no-relax
 
 NAME = kernel
 elf = $(NAME).elf
-fakeelf = __$(NAME).elf
-fakeelf2 = __$(NAME)2.elf
 img = $(NAME).img
 iso = $(NAME).iso
 map = $(NAME).map
@@ -49,9 +47,6 @@ QEMUOPTS += -device virtio-rng-pci,bus=pci.0,disable-legacy=on,disable-modern=of
 
 .SUFFIXES : .c .S .o
 
-symbol.inc.h:
-	@touch symbol.inc.h
-
 %.o: %.c
 	@echo CC $@
 	@$(CC) $(CFLAGS) -c $< -o $@
@@ -69,20 +64,11 @@ initcode: $(ARCH)/initcode.S
 	$(LD) -nostdlib -N -e main -Ttext 0x1000 -o initcode.elf initcode.o
 	$(OBJCOPY) -S -O binary initcode.elf initcode
 
-$(fakeelf): symbol.inc.h $(ARCH)/link.ld $(objs-1) $(objs-$(ARCH)) $(CONFIG) fs.img initcode
-	@echo LD $@
-	@$(LD) -n -Map $(map) --no-relax -T $(ARCH)/link.ld -o $@ $(objs-1) $(objs-$(ARCH)) -b binary fs.img initcode
-
-symbol: $(fakeelf)
-	@echo Generate Symbols...
-	@nm -a $(fakeelf) | grep ' T ' | sort | awk '{printf("{0x%s,\"%s\"},\n", $$1, $$3)}' > symbol.inc.h
-
-$(elf): symbol $(ARCH)/link.ld $(objs-1) $(objs-$(ARCH)) $(CONFIG) fs.img initcode
+$(elf): $(ARCH)/link.ld $(objs-1) $(objs-$(ARCH)) $(CONFIG) fs.img initcode
 	@echo LD $@
 	@$(LD) -n -Map $(map) --no-relax -T $(ARCH)/link.ld -o $@ $(objs-1) $(objs-$(ARCH)) -b binary fs.img initcode
 
 elf: $(elf)
-	@touch symbol.c
 	@make $(elf)
 
 iso: $(iso)
@@ -94,7 +80,7 @@ $(iso): elf grub.cfg
 	@grub-mkrescue -o $@ iso/
 
 clean:
-	$(RM) $(objs-1) $(objs-$(ARCH)) $(elf) $(fakeelf) $(iso) $(img) $(map) symbol.inc.h fs.img initcode
+	$(RM) $(objs-1) $(objs-$(ARCH)) $(elf) $(iso) $(img) $(map) fs.img initcode
 	$(RM) -rf iso/
 
 #qemu-img: $(img)
@@ -106,4 +92,4 @@ qemu-iso: $(iso)
 qemu-gdb: $(iso)
 	$(QEMU) $(QEMUOPTS) -nographic -drive file=$(iso),format=raw -serial mon:stdio -S -gdb tcp::1234
 
-.PHONY: symbol clean elf iso qemu-iso qemu-gdb
+.PHONY: clean elf iso qemu-iso qemu-gdb
