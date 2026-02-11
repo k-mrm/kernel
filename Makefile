@@ -27,7 +27,7 @@ objs-x86 += x86/entry.o
 objs-x86 += x86/com.o x86/main.o x86/seg.o
 objs-x86 += x86/cpu.o x86/pic-8259a.o x86/mm.o
 objs-x86 += x86/trap-handler.o x86/trap.o
-objs-x86 += x86/apic.o x86/xapic.o x86/x2apic.o
+objs-x86 += x86/apic.o x86/xapic.o x86/x2apic.o x86/ioapic.o
 objs-x86 += x86/cswitch.o x86/pci.o
 
 # Kernel objects
@@ -44,7 +44,8 @@ objs-1 += fs/ext2.o
 # userobject
 root = rootfs/
 ulib-1 += usr/syscalls.o
-uprgs += $(root)init $(root)echo
+uprgs += init echo cat
+uprgs := $(addprefix $(root),$(uprgs))
 
 QEMUOPTS = -smp $(NCPU) -m $(MEMSZ) -no-reboot
 QEMUOPTS += -device virtio-net-pci,bus=pci.0,disable-legacy=on,disable-modern=off

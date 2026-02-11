@@ -40,7 +40,7 @@ usleep(uint usec)
 int
 eventtimerirq(struct irq *irq)
 {
-        struct device *dev = irq->device;
+        struct device *dev = irq_device(irq);
         struct eventtimer *et = dev_eventtimer(dev); 
         int ret;
 

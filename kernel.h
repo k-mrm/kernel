@@ -179,7 +179,9 @@ tree_dfs(struct tree *r, void *(*cb)(struct tree *, void *), void *arg)
 		ret = cb(t, arg);
 		if (ret)
 			return ret;
-		tree_dfs(t, cb, arg);
+		ret = tree_dfs(t, cb, arg);
+		if (ret)
+			return ret;
 	}
 
 	return NULL;

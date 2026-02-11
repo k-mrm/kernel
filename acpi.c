@@ -4,6 +4,7 @@
 #include <acpi.h>
 #include <hpet.h>
 #include <x86/apic.h>
+#include <x86/ioapic.h>
 #include <x86/mm.h>
 
 #define KPREFIX     "acpi:"
@@ -141,51 +142,53 @@ acpifind (char *sig)
 }
 
 static void
-acpihpetinit (void)
+acpihpetinit(void)
 {
-        HpetAcpi *hpet = acpifind ("HPET");
+	HpetAcpi *hpet = acpifind("HPET");
 
-        if (!hpet)
-                return;
+	if (!hpet)
+		return;
 
-        if (hpet->address.space != ACPI_SPACE_SYSTEM_MEMORY) {
-                log ("HPET address space is not memory\n");
-                return;
-        }
-        if (!hpet->address.address) {
-                log ("HPET address is invalid\n");
-                return;
-        }
-        log ("HPET%d register @%p\n", hpet->number, hpet->address.address);
-        hpetinit (hpet->address.address, hpet->number);
+	if (hpet->address.space != ACPI_SPACE_SYSTEM_MEMORY) {
+		log("HPET address space is not memory\n");
+		return;
+	}
+	if (!hpet->address.address) {
+		log("HPET address is invalid\n");
+		return;
+	}
+	log("HPET%d register @%p\n", hpet->number, hpet->address.address);
+	hpetinit(hpet->address.address, hpet->number);
 }
 
 static void
-apicparseioapic (MadtIoapic *ioapic)
+apicparseioapic(MadtIoapic *ioapic)
 {
-        log ("IOAPIC%d at %p\n", ioapic->ioapicid, ioapic->ioapicaddr);
+	log("IOAPIC%d at %p\n", ioapic->ioapicid, ioapic->ioapicaddr);
+
+	ioapicinit(ioapic->ioapicid, ioapic->ioapicaddr, ioapic->intrbase);
 }
 
 static void 
-apicparselocalx2apic (MadtLocalx2apic *x2apic)
+apicparselocalx2apic(MadtLocalx2apic *x2apic)
 {
-        log ("x2apic Processor %d found %d %d\n",
-             x2apic->x2apicid, x2apic->acpiid, x2apic->flags);
+	log("x2apic Processor %d found %d %d\n",
+	    x2apic->x2apicid, x2apic->acpiid, x2apic->flags);
 
-        x2apicinit (x2apic->x2apicid);
+	x2apicinit(x2apic->x2apicid);
 }
 
 static void 
-apicparselocalapic (MadtLocalapic *apic)
+apicparselocalapic(MadtLocalapic *apic)
 {
-        if (!(apic->flags & 1))
-                return;
-        log ("Processor %d(%d) found\n", apic->procid, apic->apicid);
-        xapicinit (apic->apicid);
+	if (!(apic->flags & 1))
+		return;
+	log("Processor %d(%d) found\n", apic->procid, apic->apicid);
+	xapicinit(apic->apicid);
 }
 
 static void
-acpimadtinit (void)
+acpimadtinit(void)
 {
         Madt      *madt;
         MadtEntry *ent;
@@ -198,10 +201,8 @@ acpimadtinit (void)
         len = ((SdtHeader *)madt)->length;
         for (ent = madt->table;
              (ulong)ent < (ulong)madt + len;
-             ent = (MadtEntry *)((ulong)ent + ent->length))
-        {
-                switch (ent->type)
-                {
+             ent = (MadtEntry *)((ulong)ent + ent->length)) {
+                switch (ent->type) {
                 case APIC_TYPE_LOCALAPIC:
                         apicparselocalapic ((MadtLocalapic *)ent);
                         break;
@@ -218,49 +219,49 @@ acpimadtinit (void)
 void
 regxsdp (void *x)
 {
-        if (!x)
-                warn ("null xsdp");
+	if (!x)
+		warn ("null xsdp");
 
 	if (rsdpcheck(x)) {
-        	xsdp = (Xsdp *)x;
+		xsdp = (Xsdp *)x;
 	}
 }
 
 void
 regrsdp (void *r)
 {
-        if (!r)
-                warn ("null rsdp");
+	if (!r)
+		warn ("null rsdp");
 
 	if (rsdpcheck(r)) {
-        	rsdp = (Rsdp *)r;
+		rsdp = (Rsdp *)r;
 	}
 }
 
 void 
-acpiinit (void)
+acpiinit(void)
 {
-        if (xsdp && rsdpcheck (xsdp)) {
-                rsdpver = 2;
-                goto found;
-        }
+	if (xsdp && rsdpcheck (xsdp)) {
+		rsdpver = 2;
+		goto found;
+	}
 
-        if (rsdp && rsdpcheck (rsdp)) {
-                rsdpver = 1;
-                goto found;
-        }
-        panic ("no acpi table");
+	if (rsdp && rsdpcheck (rsdp)) {
+		rsdpver = 1;
+		goto found;
+	}
+	panic ("no acpi table");
 
 found:
-        log ("found acpi table version%d\n", rsdpver);
-        log ("acpi (%s %s) rsdt %p\n", rsdp->signature, rsdp->oemid, rsdp->rsdtaddress);
+	log ("found acpi table version%d\n", rsdpver);
+	log ("acpi (%s %s) rsdt %p\n", rsdp->signature, rsdp->oemid, rsdp->rsdtaddress);
 
-        if (rsdpver == 1) {
-                rsdt = P2V (rsdp->rsdtaddress);
-        } else if (rsdpver == 2) {
-                xsdt = P2V (xsdp->xsdtaddress);
-        }
+	if (rsdpver == 1) {
+		rsdt = P2V (rsdp->rsdtaddress);
+	} else if (rsdpver == 2) {
+		xsdt = P2V (xsdp->xsdtaddress);
+	}
 	acpidump();
-        acpimadtinit();
-        acpihpetinit();
+	acpimadtinit();
+	acpihpetinit();
 }

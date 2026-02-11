@@ -8,88 +8,132 @@
 #include <printk.h>
 
 static void *
-getirqchip(struct device *dev, void *_)
+__getirq(struct device *dev, void *arg)
 {
-	return dev;
-}
+	struct irq *irq = dev_irq(dev);
+	int irqno = (int)arg;
 
-struct irqchip *
-myirqchip(void)
-{
-	struct irqchip *ic;
-
-	ic = dev_traverse_cpu("irqchip", getirqchip, NULL);
-
-	if (!ic)
-		panic("ic!?");
-	return ic;
+	if (irq->irqno == irqno) {
+		return irq;
+	} else {
+		return NULL;
+	}
 }
 
 static struct irq *
 getirq(int irqno)
 {
-	struct irqchip *irqchip = myirqchip();
 	struct irq *irq;
 
-	if (irqchip) {
-		LIST_FOREACH (irq, &irqchip->irqs, in) {
-			if (irq->irqno == irqno)
-				return irq;
-		}
-	}
+	irq = dev_traverse_cpu("irq", __getirq, (void *)irqno);
 
-	irqchip = dev_traverse("irqchip", getirqchip, NULL);
+	if (irq)
+		return irq;
+	
+	irq = dev_traverse("irq", __getirq, (void *)irqno);
 
-	if (irqchip) {
-		LIST_FOREACH (irq, &irqchip->irqs, in) {
-			if (irq->irqno == irqno)
-				return irq;
-		}
-	}
+	return irq;
+}
 
-	return NULL;
+static int
+allocirq(void)
+{
+	static int no = 0x20;
+	return no++;
+}
+
+static int
+irq_dev_enable(struct device *dev)
+{
+	struct irq *irq = dev_irq(dev);
+	struct irqchip *ic = irq->chip;
+
+	ic->enable_irq(irq);
+}
+
+static struct driver irq_driver = {
+	.name		= "irq",
+	.description	= "irq as device",
+	.probe		= irq_dev_enable,
+	.suspend	= NULL,
+	.resume		= NULL,
+	.param		= "disable",
+};
+
+struct device *
+irq_device(struct irq *irq)
+{
+	return parent_device(&irq->device);
+}
+
+struct irq *
+newirq(struct device *dev, struct irqchip *ic, int irqno, int (*handler)(struct irq *), void *priv)
+{
+	struct irq *irq = alloc();
+	if (!irq)
+		return NULL;
+	
+	irq->chip = ic;
+	if (irqno < 0)
+		irq->irqno = allocirq();
+	else
+		irq->irqno = irqno;
+	irq->handler = handler;
+	irq->priv = priv;
+
+	new_device(&irq->device, "irq", dev->name, &irq_driver, &dev->node);
+
+	return irq;
 }
 
 int
-newirq(struct device *dev, struct irqchip *ic, int irqno, bool priv, int (*handler)(struct irq *irq))
+disable_irq(struct irq *irq)
 {
-        struct irq *irq = alloc();
-        if (!irq)
-                return -1;
-        if (irqno < 0)
-                return -1;
+	return -1;
+}
 
-	list_add(&ic->irqs, &irq->in);
+static int
+irq_ack(struct irq *irq)
+{
+	struct irqchip *ic = irq->chip;
 
-	irq->chip = ic;
-        irq->irqno = irqno;
-        irq->device = dev;
-        irq->handler = handler;
+	for (; ic; ic = ic->parent) {
+		if (ic->ack)
+			ic->ack(irq);
+	}
+}
 
-        return 0;
+static int
+irq_eoi(struct irq *irq)
+{
+	struct irqchip *ic = irq->chip;
+
+	for (; ic; ic = ic->parent) {
+		if (ic->eoi)
+			ic->eoi(irq);
+	}
 }
 
 int
 handleirq(int irqno)
 {
-        struct irq *irq = getirq(irqno);
-        int ret;
+	struct irq *irq = getirq(irqno);
+	int ret;
 
-        if (!irq)
-                return -1;
+	if (!irq)
+		return -1;
 
-        irq->chip->ops->ack(irq);
-        irq->chip->ops->eoi(irq);
+	irq_ack(irq);
+	irq_eoi(irq);
 
-        ret = irq->handler(irq);
-        return ret;
+	ret = irq->handler(irq);
+	return ret;
 }
 
 int
 probe_irqchip(struct device *dev)
 {
-        struct irqchip *irqchip = dev_irqchip(dev);
-	initlist(&irqchip->irqs);
-        log ("using irqchip: %s\n", dev->name);
-        return 0;
+	struct irqchip *irqchip = dev_irqchip(dev);
+	log("using irqchip: %s\n", dev->name);
+	return 0;
 }

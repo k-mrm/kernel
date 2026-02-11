@@ -6,37 +6,45 @@
 
 struct irq;
 
-struct irqchip_if {
-        void (*eoi)(struct irq *irq);
-        int (*ack)(struct irq *irq);
-};
-
 struct irqchip
 {
-	struct device dev;
-	struct irqchip_if *ops;
+	struct irqchip *parent;
 
-	struct list irqs;
+	struct device dev;
+
+	struct irq *(*new_irq)(struct irqchip *ic, struct device *dev, int irqno, int (*handler)(struct irq *));
+	int (*alloc)(struct irqchip *ic);
+
+        void (*eoi)(struct irq *irq);
+        int (*ack)(struct irq *irq);
+	int (*enable_irq)(struct irq *irq);
+	int (*disable_irq)(struct irq *irq);
 };
 
-#define dev_irqchip(_d)	container_of(_d, struct irqchip, dev)
+#define dev_irqchip(_d)		container_of((_d), struct irqchip, dev)
 
 struct irq
 {
         int irqno;
-        struct irqchip *chip;
-        struct device *device;
+        struct device device;
+	struct irqchip *chip;
+
+	struct device *dev;
 
 	struct list in;
 
-        int (*handler)(struct irq *irq);
-        int (*enable)(struct irq *irq);
-        int (*disable)(struct irq *irq);
+	void *priv;
+
+        int (*handler)(struct irq *);
 };
 
-struct irqchip *myirqchip(void);
-int newirq(struct device *dev, struct irqchip *ic, int irqno, bool priv, int (*handler)(struct irq *irq));
+#define dev_irq(_d)	container_of((_d), struct irq, device)
+
+struct irq *newirq(struct device *dev, struct irqchip *ic, int irqno, int (*handler)(struct irq *), void *priv);
+int enable_irq(struct irq *irq);
+int disable_irq(struct irq *irq);
 int handleirq(int irqno);
 int probe_irqchip(struct device *dev);
+struct device *irq_device(struct irq *irq);
 
 #endif  // _IRQ_H

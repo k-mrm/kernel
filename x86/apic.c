@@ -6,6 +6,7 @@
 #include <device.h>
 #include <kalloc.h>
 #include <cpu.h>
+#include <string.h>
 #include "arch.h"
 #include "apic.h"
 
@@ -32,6 +33,8 @@
 #define TM_CURRENT  0x390
 #define TM_DIV      0x3e0
 
+static struct apic *localapic;
+
 static int
 apic_timer_freq(struct apic *apic)
 {
@@ -56,6 +59,7 @@ apictimer_probe(struct device *device)
 {
 	struct eventtimer *et = dev_eventtimer(device);
 	struct apic *apic = container_of(et, struct apic, timer);
+	struct irq *irq;
 	int err;
         u32 lvt = 0;
 
@@ -70,19 +74,20 @@ apictimer_probe(struct device *device)
         if (err)
                 return -1;
 
-        lvt = LVT_TIMER_PERIODIC;
-        // lvt |= LVT_TIMER_INT_MASK;
-        lvt |= 0x40;    // periodic mode, vector is 0x40
-
         log("new apictimer!! %d\n", apic->id);
-        apic->ops->write(apic, LVT_TIMER, lvt);
-        apic->ops->write(apic, TM_INIT, apic->freq / 10);    // 100ms
 
-        err = newirq(device, myirqchip(), 0x40, true, eventtimerirq);
-        if (err) {
+        irq = device->irqchip->new_irq(device->irqchip, device, -1, eventtimerirq);
+        if (!irq) {
                 warn ("no irq\n");
                 return -1;
         }
+
+        lvt = LVT_TIMER_PERIODIC;
+        lvt |= irq->irqno;    // periodic mode, vector is irq->irqno
+
+        apic->ops->write(apic, LVT_TIMER, lvt);
+        apic->ops->write(apic, TM_INIT, apic->freq / 10);    // 100ms
+
         return probe_evtimer(device);
 }
 
@@ -120,7 +125,7 @@ static void
 apic_eoi(struct irq *irq)
 {
 	struct irqchip *ic = irq->chip;
-        struct apic *apic = container_of(ic, struct apic, irqchip);
+        struct apic *apic = localapic;
 
         apic->ops->write(apic, EOI, 0);
 }
@@ -149,7 +154,7 @@ static void
 enable_apic(struct device *dev)
 {
 	struct irqchip *ic = dev_irqchip(dev);
-        struct apic *apic = container_of(ic, struct apic, irqchip);
+        struct apic *apic = localapic;
         u32 spiv;
 
         spiv = apic->ops->read(apic, SPIV);
@@ -161,7 +166,7 @@ static void
 disable_apic(struct device *dev)
 {
 	struct irqchip *ic = dev_irqchip(dev);
-        struct apic *apic = container_of(ic, struct apic, irqchip);
+        struct apic *apic = localapic;
         u32 spiv;
 
         spiv = apic->ops->read(apic, SPIV);
@@ -178,10 +183,22 @@ setspiv(struct apic *apic)
 }
 
 static int
+apic_enable_irq(struct irq *irq)
+{
+	return 0;
+}
+
+static int
+apic_disable_irq(struct irq *irq)
+{
+	return 0;
+}
+
+static int
 apic_probe(struct device *dev)
 {
 	struct irqchip *ic = container_of(dev, struct irqchip, dev);
-        struct apic *apic = container_of(ic, struct apic, irqchip);
+        struct apic *apic = localapic;
 
         if (apic->ops->probe(dev, apic) < 0)
                 return -1;
@@ -195,6 +212,12 @@ apic_probe(struct device *dev)
         enable_apic(dev);
 
         return probe_irqchip(dev);
+}
+
+static struct irq *
+apic_new_irq(struct irqchip *ic, struct device *dev, int irqno, int (*handler)(struct irq *irq))
+{
+	return newirq(dev, ic, irqno, handler, NULL);
 }
 
 static struct driver apic_et_drv = {
@@ -221,9 +244,13 @@ static struct driver apic_irqchip_drv = {
         .param          = "xapic,x2apic",
 };
 
-static struct irqchip_if apic_irqchip_ops = {
+struct irqchip lapic_chip = {
+	.parent = NULL,
+	.new_irq = apic_new_irq,
         .ack = apic_ack,
         .eoi = apic_eoi,
+	.enable_irq = apic_enable_irq,
+	.disable_irq = apic_disable_irq,
 };
 
 void
@@ -241,15 +268,17 @@ apicinit(u32 id, struct apic_if *ops)
         apic->ops = ops;
         apic->id = id;
 
-	rc = new_device(&apic->irqchip.dev, "irqchip", "LAPIC", &apic_irqchip_drv, &cpu->devtree);
+	localapic = apic;
+
+	rc = new_device(&lapic_chip.dev, "irqchip", "LAPIC", &apic_irqchip_drv, NULL);
 	if (rc < 0)
 		return;
-	apic->irqchip.ops = &apic_irqchip_ops;
 
 	rc = new_device(&apic->timer.dev, "eventtimer", "LAPICTimer", &apic_et_drv, &cpu->devtree);
 	if (rc < 0)
 		return;
 	apic->timer.ops = &apic_et_ops;
+	apic->timer.dev.irqchip = &lapic_chip;
 
 	return;
 }

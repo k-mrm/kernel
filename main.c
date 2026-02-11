@@ -12,17 +12,20 @@
 #include <x86/arch.h>
 #include <module.h>
 
+void apmain(void) NORETURN;
+
 void NORETURN
 kernelmain (void)
 {
         kernelmap();
         kallocinit();
         ramdiskinit();
-        dev_probe("console");
         dev_probe("irqchip");
+        dev_probe("console");
         dev_probe("timer");
         dev_probe("eventtimer");
         dev_probe("block");
+        dev_probe("irq");
         initmodule();
         initfs();
         initprocess();

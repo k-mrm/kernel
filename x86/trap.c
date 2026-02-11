@@ -185,100 +185,100 @@ VENTRY(0xfc); VENTRY(0xfd); VENTRY(0xfe); VENTRY(0xff);
 asm (".text \n");
 
 static inline void
-loadidt (Gatedesc *idt, ulong idtsize)
+loadidt(Gatedesc *idt, ulong idtsize)
 {
-        volatile u16 t[5];
+	volatile u16 t[5];
 
-        t[0] = (u16)idtsize - 1;
-        t[1] = (u16)(ulong)idt;
-        t[2] = (u16)((ulong)idt >> 16);
-        t[3] = (u16)((ulong)idt >> 32);
-        t[4] = (u16)((ulong)idt >> 48);
+	t[0] = (u16)idtsize - 1;
+	t[1] = (u16)(ulong)idt;
+	t[2] = (u16)((ulong)idt >> 16);
+	t[3] = (u16)((ulong)idt >> 32);
+	t[4] = (u16)((ulong)idt >> 48);
 
-        asm volatile ("lidt (%0)" :: "r"(t));
+	asm volatile ("lidt (%0)" :: "r"(t));
 }
 
 static inline void
-setgate (Gatedesc *desc, ulong offset, u16 sel, Gatetype type, u8 dpl)
+setgate(Gatedesc *desc, ulong offset, u16 sel, Gatetype type, u8 dpl)
 {
-        desc->offset_0_15   = (u16)offset;
-        desc->sel           = sel;
-        desc->ist           = 0;
-        desc->_rsrv0        = 0;
-        desc->gatetype      = type;
-        desc->_zero         = 0;
-        desc->dpl           = dpl;
-        desc->p             = 1;
-        desc->offset_16_31  = (u16)(offset >> 16);
-        desc->offset_32_63  = (u32)(offset >> 32);
-        desc->_rsrv1        = 0;
+	desc->offset_0_15   = (u16)offset;
+	desc->sel           = sel;
+	desc->ist           = 0;
+	desc->_rsrv0        = 0;
+	desc->gatetype      = type;
+	desc->_zero         = 0;
+	desc->dpl           = dpl;
+	desc->p             = 1;
+	desc->offset_16_31  = (u16)(offset >> 16);
+	desc->offset_32_63  = (u32)(offset >> 32);
+	desc->_rsrv1        = 0;
 }
 
 void
-x86trapinit (void)
+x86trapinit(void)
 {
-        for (uint i = 0; i < NR_INTERRUPT; i++)
-                setgate (idt + i, allvectors[i], SEG_KCODE << 3, GATEDESC_64_INTR, DPL_KERNEL);
-        setgate (idt + 0x80, allvectors[0x80], SEG_KCODE << 3, GATEDESC_64_TRAP, DPL_USER);
+	for (uint i = 0; i < NR_INTERRUPT; i++)
+		setgate(idt + i, allvectors[i], SEG_KCODE << 3, GATEDESC_64_INTR, DPL_KERNEL);
+	setgate(idt + 0x80, allvectors[0x80], SEG_KCODE << 3, GATEDESC_64_TRAP, DPL_USER);
 
-        loadidt (idt, sizeof idt);
+	loadidt(idt, sizeof idt);
 }
 
 static void
-x86pagefault (struct trapframe *tf)
+x86pagefault(struct trapframe *tf)
 {
-        ulong faultaddr = cr2 ();
+	ulong faultaddr = cr2 ();
 
-        warn ("page fault @%p (%p)\n", tf->rip, faultaddr);
-        warn ("errcode %x\n", tf->errcode);
-        panic ("gg");
-        /*
-           pf.FaultAddr = faultaddr;
-           pf.Wr = !!(tf->Errcode & (1 << 1));
-           pf.User = false;
+	warn("page fault @%p (%p)\n", tf->rip, faultaddr);
+	warn("errcode %x\n", tf->errcode);
+	panic("gg");
+	/*
+	   pf.FaultAddr = faultaddr;
+	   pf.Wr = !!(tf->Errcode & (1 << 1));
+	   pf.User = false;
 
-           PageFault (&pf);
-           */
+	   PageFault (&pf);
+	   */
 }
 
 static void
-syscallint80 (struct trapframe *tf)
+syscallint80(struct trapframe *tf)
 {
-        tf->rax = (u64)syscall (tf->rax, (void*)tf->rdi, (void*)tf->rsi, (void*)tf->rdx,
-                                (void*)tf->r10, (void *)tf->r8, (void *)tf->r9); 
+	tf->rax = (u64)syscall(tf->rax, (void*)tf->rdi, (void*)tf->rsi, (void*)tf->rdx,
+			       (void*)tf->r10, (void *)tf->r8, (void *)tf->r9); 
 }
 
 /*
  *  General Trap Handler
  */
 void 
-trap (struct trapframe *tf)
+trap(struct trapframe *tf)
 {
-        struct cpu *cpu = mycpu ();
-        struct proc *proc = cpu->current;
-        int err;
+	struct cpu *cpu = mycpu();
+	struct proc *proc = cpu->current;
+	int err;
 
-        if (proc)
-                proc->tf = tf;
+	if (proc)
+		proc->tf = tf;
 
-        // trace("trap from %d %d(err=0x%x) %p\n", tf->r15, tf->trapno, tf->errcode, tf->rip);
-        switch (tf->trapno)
-        {
-        case E_PF: x86pagefault (tf); break;
-        case E_GP: panic ("GP");
-        case 0x80:      /* syscall */
-                   syscallint80 (tf);
-                   break;
-        default:
-                   err = handleirq (tf->trapno);
-                   if (err)
-                           panic ("unknown trap");
-                   break;
-        }
+	// trace("trap from %d %d(err=0x%x) %p\n", tf->r15, tf->trapno, tf->errcode, tf->rip);
+	switch (tf->trapno)
+	{
+	case E_PF: x86pagefault (tf); break;
+	case E_GP: panic ("GP");
+	case 0x80:      /* syscall */
+		   syscallint80 (tf);
+		   break;
+	default:
+		   err = handleirq (tf->trapno);
+		   if (err)
+			   panic ("unknown trap %d\n", tf->trapno);
+		   break;
+	}
 }
 
 struct proc *
-__cswitch (struct context *prev, struct context *next, struct proc *pprev)
+__cswitch(struct context *prev, struct context *next, struct proc *pprev)
 {
-        return pprev;
+	return pprev;
 }

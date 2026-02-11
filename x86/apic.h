@@ -16,18 +16,21 @@ struct apic_if {
 };
 
 struct apic {
-	volatile void *base;
-	ulong basepa;
 	int id;
 
 	uint freq;
 	uint periodms;
 
-	struct irqchip irqchip;
 	struct eventtimer timer;
 
 	struct apic_if *ops;
 };
+
+struct apic_hw {
+	;
+};
+
+extern struct irqchip lapic_chip;
 
 void xapicinit(uint id);
 void x2apicinit(uint id);

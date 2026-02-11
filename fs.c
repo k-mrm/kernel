@@ -228,7 +228,7 @@ mountroot(void)
 }
 
 void
-fsdbg (void)
+fsdbg(void)
 {
         struct inode *ino;
 
@@ -256,6 +256,18 @@ write(int fd, const char * USER buf, unsigned long size)
 }
 
 SYSCALL_DEFINE(SYS_WRITE, write);
+
+static int
+read(int fd, char *buf, unsigned long size)
+{
+	int n = 0;
+	if (fd == 0)
+		n = consread(buf, size);
+
+	return n;
+}
+
+SYSCALL_DEFINE(SYS_READ, read);
 
 void
 initfs(void)

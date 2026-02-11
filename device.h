@@ -28,6 +28,8 @@ struct device
 
 	struct tree node;
 
+	struct irqchip *irqchip;	// nullable
+
 	struct driver *driver;
 };
 
@@ -39,7 +41,7 @@ struct iomem {
 };
 
 struct iomem *iomap(struct device *dev, ulong base, uint size);
-
+struct device *parent_device(struct device *dev);
 void dev_probe(char *type);
 void lsdev(void);
 int new_device(struct device *dev, char *ty, char *name, struct driver *drv, struct tree *parent);

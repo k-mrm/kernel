@@ -17,6 +17,11 @@ enum procstate
         ZOMBIE,
 };
 
+struct chan
+{
+	struct proc *proc;
+};
+
 struct proc
 {
         enum procstate state;
@@ -32,8 +37,6 @@ struct proc
 
         struct inode *cwd;
 	
-	void *chan;
-
 	struct tree pn;
 
 	struct list waitq;
@@ -41,6 +44,8 @@ struct proc
 	struct list rq;
 	struct list free;
 	struct list wqn;
+
+	struct chan chan;
 
         int exitstatus;
 
@@ -57,6 +62,8 @@ int killpid(uint pid);
 int kill(char *pname);
 void schedule(void);
 int exit(int status);
+void sleep(struct chan *chan, int (*cb)(void *), void *arg);
+void wakeup(struct chan *chan);
 
 
 #endif  // _PROC_H

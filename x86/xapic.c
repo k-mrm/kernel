@@ -18,32 +18,35 @@
 #define XAPIC_ICR_LOW   0x300
 #define XAPIC_ICR_HIGH  0x310
 
+static ulong apic_basepa;
+static volatile void *apic_base;
+
 static inline u32
-xapicread32 (volatile void *base, u32 off)
+xapicread32(u32 off)
 {
-        return *(volatile u32 *)(base + off);
+        return *(volatile u32 *)(apic_base + off);
 }
 
 static inline void
-xapicwrite32 (volatile void *base, u32 off, u32 val)
+xapicwrite32(u32 off, u32 val)
 {
-        *(volatile u32 *)(base + off) = val;
+        *(volatile u32 *)(apic_base + off) = val;
 }
 
 static u32
-xapicrd (struct apic *apic, u32 reg)
+xapicrd(struct apic *apic, u32 reg)
 {
         u32 offset = reg;
-        return xapicread32(apic->base, offset);
+        return xapicread32(offset);
 }
 
 static void
-xapicwr (struct apic *apic, u32 reg, u32 val)
+xapicwr(struct apic *apic, u32 reg, u32 val)
 {
         u32 offset = reg;
-        xapicwrite32(apic->base, offset, val);
+        xapicwrite32(offset, val);
         // wait for completion
-        xapicread32(apic->base, XAPIC_ID);
+        xapicread32(XAPIC_ID);
 }
 
 static void
@@ -81,8 +84,8 @@ xapicprobe(struct device *dev, struct apic *apic)
         if (!iomem)
                 return -1;
 
-        apic->basepa = apic_baseaddr();
-        apic->base = iomem->base;
+        apic_basepa = apic_baseaddr();
+        apic_base = iomem->base;
         return 0;
 }
 

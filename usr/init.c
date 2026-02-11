@@ -4,12 +4,12 @@ int
 main (void)
 {
 	int pid;
-	const char *args[3] = {"echotest", "hello echo!", "SuperHello"};
+	const char *args[1] = {"cat"};
 
 	for (;;) {
 		pid = fork();
 		if (pid == 0) {
-			exec("echo", args);
+			exec("cat", args);
 			write(1, "failed\n", 7);
 		}
 

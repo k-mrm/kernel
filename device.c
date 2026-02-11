@@ -34,6 +34,18 @@ new_device(struct device *dev, char *ty, char *name, struct driver *drv, struct 
 	return 0;
 }
 
+struct device *
+parent_device(struct device *dev)
+{
+	struct tree *node = &dev->node;
+	struct tree *pnode = node->par;
+
+	if (pnode == &devtree)
+		return NULL;
+	else
+		return TREE_ENTRY(pnode, struct device, node);
+}
+
 static void *
 __devtree_traverse(struct tree *node, void *arg)
 {
@@ -83,8 +95,10 @@ dev_traverse_cpu(char *ty, void *(*devcb)(struct device *, void *), void *arg)
 static void *
 __dev_probe(struct device *dev, void *_)
 {
+	log("probe %s: %s\n", dev->type, dev->name);
 	if (dev->driver->probe)
 		dev->driver->probe(dev);
+	log("probe %s: %s OK\n", dev->type, dev->name);
 
 	return NULL;
 }
