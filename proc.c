@@ -1,19 +1,19 @@
-#include <kernel.h>
-#include <vm.h>
 #include <cpu.h>
-#include <kalloc.h>
-#include <string.h>
-#include <proc.h>
 #include <elf.h>
+#include <kalloc.h>
+#include <kernel.h>
+#include <panic.h>
+#include <proc.h>
+#include <string.h>
 #include <syscall.h>
 #include <timer.h>
-#include <panic.h>
+#include <vm.h>
 #include <x86/arch.h>
 #include <x86/mm.h>
-#include <x86/trap.h>
 #include <x86/seg.h>
+#include <x86/trap.h>
 
-#define KPREFIX       "proc:"
+#define KPREFIX "proc:"
 
 #include <printk.h>
 
@@ -24,69 +24,50 @@ static struct proc *initproc;
 static uint procidtable = 0;
 
 // Locked r
-static struct proc *
-rqpop(void)
-{
+static struct proc *rqpop(void) {
   struct proc *p;
-
   if (list_empty(&rq))
     return NULL;
   p = LIST_ENTRY(&rq, struct proc, rq);
   list_delete(&p->rq);
-
   return p;
 }
 
-static uint
-procid (void)
-{
-  return procidtable++;
-}
+static uint procid(void) { return procidtable++; }
 
-static void
-initnewproctf(struct proc *p, struct trapframe *tf)
-{
+static void initnewproctf(struct proc *p, struct trapframe *tf) {
+  u64 cs, rflags, ss;
   if (p->user) {
-    u64 rflags;
-    asm volatile (
-      "pushfq\n"
-      "pop  %0\n" : "=r" (rflags)
-    );
-
-    tf->rip     = 0x1000;
-    tf->cs      = (SEG_UCODE << 3) | DPL_USER;
-    tf->rflags  = rflags | EFLAGS_IF;
-    tf->ss      = (SEG_UDATA << 3) | DPL_USER;
-    tf->rsp     = USTACKTOP;
+    asm volatile("pushfq\n"
+                 "pop  %0\n"
+                 : "=r"(rflags));
+    tf->rip = 0x1000;
+    tf->cs = (SEG_UCODE << 3) | DPL_USER;
+    tf->rflags = rflags | EFLAGS_IF;
+    tf->ss = (SEG_UDATA << 3) | DPL_USER;
+    tf->rsp = USTACKTOP;
   } else {
-    u64 cs, rflags, ss;
-    asm volatile ("mov  %%cs, %0" : "=r" (cs));
-    asm volatile ("mov  %%ss, %0" : "=r" (ss));
-    asm volatile (
-      "pushfq\n"
-      "pop  %0\n" : "=r" (rflags)
-    );
-
-    tf->rip     = (u64)p->func;
-    tf->rdi     = (u64)p->arg;
-    tf->cs      = cs;
-    tf->rflags  = rflags | EFLAGS_IF;
-    tf->ss      = ss;
-    tf->rsp     = (u64)tf;
+    asm volatile("mov  %%cs, %0" : "=r"(cs));
+    asm volatile("mov  %%ss, %0" : "=r"(ss));
+    asm volatile("pushfq\n"
+                 "pop  %0\n"
+                 : "=r"(rflags));
+    tf->rip = (u64)p->func;
+    tf->rdi = (u64)p->arg;
+    tf->cs = cs;
+    tf->rflags = rflags | EFLAGS_IF;
+    tf->ss = ss;
+    tf->rsp = (u64)tf;
   }
 }
 
-static void
-dead(struct proc *p)
-{
+static void dead(struct proc *p) {
   if (!p)
     return;
   p->state = ZOMBIE;
 }
 
-static void
-ready(struct proc *p)
-{
+static void ready(struct proc *p) {
   if (!p)
     return;
   // Lock rq
@@ -96,51 +77,41 @@ ready(struct proc *p)
 }
 
 // Locked rq
-static void
-running(struct proc *p)
-{
+static void running(struct proc *p) {
   if (!p)
     return;
   // assert (rq is locked)
   p->state = RUNNING;
 }
 
-static void
-block(struct proc *p)
-{
+static void block(struct proc *p) {
   if (!p)
     return;
   p->state = BLOCKING;
 }
 
-static struct proc *
-newproc(char *name, struct proc *parent, bool user, int (*pfunc) (void *arg), void *parg)
-{
-  struct proc *p = zalloc ();
+static struct proc *newproc(char *name, struct proc *parent, bool user,
+                            int (*pfunc)(void *arg), void *parg) {
+  struct proc *p = zalloc();
   void *sp;
 
   if (!p)
     return NULL;
 
-  p->procid = procid ();
-
+  p->procid = procid();
+  initlist(&p->waitq);
+  inittree(&p->pn);
   p->user = user;
   if (!p->user) {
     p->func = pfunc;
-    p->arg  = parg;
+    p->arg = parg;
   }
-
   p->vm = NULL;
-
-  initlist(&p->waitq);
-  inittree(&p->pn);
   if (parent)
     new_child(&parent->pn, &p->pn);
   else
     new_child(&proctree, &p->pn);
-
   strcpy(p->pname, name);
-
   p->kstack = zalloc();
   if (!p->kstack)
     goto err;
@@ -149,33 +120,28 @@ newproc(char *name, struct proc *parent, bool user, int (*pfunc) (void *arg), vo
   sp -= sizeof *p->tf;
   initnewproctf(p, sp);
   p->tf = sp;
-  log("p->tf->sp:%p, ss:%p, rflags:%p, cs:%p, rip:%p\n",
-      p->tf->rsp, p->tf->ss, p->tf->rflags, p->tf->cs, p->tf->rip);
+  log("p->tf->sp:%p, ss:%p, rflags:%p, cs:%p, rip:%p\n", p->tf->rsp, p->tf->ss,
+      p->tf->rflags, p->tf->cs, p->tf->rip);
   // init stackframe for context switch
-  sp -= sizeof (struct stackframe);
+  sp -= sizeof(struct stackframe);
   ((struct stackframe *)sp)->rip = (u64)forkret;
-
-  p->context.rsp  = (u64)sp;
+  p->context.rsp = (u64)sp;
   return p;
 
 err:
-  free (p);
+  free(p);
   return NULL;
 }
 
-static void
-freeproc (struct proc *p)
-{
+static void freeproc(struct proc *p) {
   tree_node_delete(&p->pn);
 
   free(p->kstack);
-  memset (p, sizeof *p, 0);
+  memset(p, sizeof *p, 0);
   free(p);
 }
 
-static void
-inituserproc(void)
-{
+static void inituserproc(void) {
   struct proc *p;
   extern char _binary_initcode_start[];
   extern char _binary_initcode_end[];
@@ -185,31 +151,23 @@ inituserproc(void)
   p = newproc("init0", NULL, true, NULL, NULL);
   if (!p)
     return;
-
   p->vm = uservm(p);
-  p->cwd = path2ino ("/");
-
+  p->cwd = path2ino("/");
   initcode = zalloc();
-  memcpy (initcode, _binary_initcode_start, isize);
-  mappages (p->vm, 0x1000, V2P (initcode), PAGESIZE,
-      pnormal () | preadonly () | pexecutable () | puser (), false);
-
+  memcpy(initcode, _binary_initcode_start, isize);
+  mappages(p->vm, 0x1000, V2P(initcode), PAGESIZE,
+           pnormal() | preadonly() | pexecutable() | puser(), false);
   ready(p);
-
   initproc = p;
 }
 
-void
-initprocess (void)
-{
-  spawn ("kidle", NULL, idleprocess, NULL);
+void initprocess(void) {
+  spawn("kidle", NULL, idleprocess, NULL);
 
   inituserproc();
 }
 
-static int
-exec (const char *path, const char **argv)
-{
+static int exec(const char *path, const char **argv) {
   struct inode *elf;
   struct fs *fs;
   struct ehdr ehdr;
@@ -234,29 +192,29 @@ exec (const char *path, const char **argv)
 
   fs = elf->fs;
   status = fs->op->readi(elf, (uchar *)&ehdr, 0, sizeof ehdr);
-  if (status != sizeof (ehdr))
+  if (status != sizeof(ehdr))
     goto err;
-  if (!iself (&ehdr))
+  if (!iself(&ehdr))
     goto err;
   if (ehdr.e_type != ET_EXEC)
     goto err;
 
   phoff = ehdr.e_phoff;
   for (int i = 0; i < ehdr.e_phnum; i++, phoff += sizeof phdr) {
-    p = zalloc ();
+    p = zalloc();
     flags = 0;
 
-    status = fs->op->readi (elf, (uchar *)&phdr, phoff, sizeof phdr);
+    status = fs->op->readi(elf, (uchar *)&phdr, phoff, sizeof phdr);
     if (status != sizeof phdr)
       goto err;
     if (phdr.p_type != PT_LOAD)
       continue;
 
-    if (!PAGEALIGNED (phdr.p_vaddr))
-      panic ("o");
+    if (!PAGEALIGNED(phdr.p_vaddr))
+      panic("o");
 
-    flags |= phdr.p_flags & PF_X ? pexecutable () | preadonly () : 0;
-    flags |= phdr.p_flags & PF_W ? pwritable () : 0;
+    flags |= phdr.p_flags & PF_X ? pexecutable() | preadonly() : 0;
+    flags |= phdr.p_flags & PF_W ? pwritable() : 0;
 
     vmcodealloc(vm, phdr.p_memsz, flags);
 
@@ -266,20 +224,20 @@ exec (const char *path, const char **argv)
 
   // setup arguments
   for (; argv && argv[uargc]; uargc++) {
-    sp -= strlen (argv[uargc]) + 1;
+    sp -= strlen(argv[uargc]) + 1;
     sp = (void *)((u64)sp & ~0xf);
     if (sp < vm->ustack)
       goto err;
 
-    memcpy (sp, argv[uargc], strlen (argv[uargc]));
+    memcpy(sp, argv[uargc], strlen(argv[uargc]));
     args[uargc] = USTACKTOP - (top - sp);
   }
 
-  sp -= sizeof (args[0]) * (uargc + 1);
+  sp -= sizeof(args[0]) * (uargc + 1);
   sp = (void *)((u64)sp & ~0xf);
   if (sp < vm->ustack)
     goto err;
-  memcpy (sp, args, sizeof (args[0]) * uargc);
+  memcpy(sp, args, sizeof(args[0]) * uargc);
 
   proc->tf->rip = ehdr.e_entry;
   proc->tf->rdi = uargc;
@@ -288,30 +246,27 @@ exec (const char *path, const char **argv)
   proc->vm = vm;
 
   strcpy(proc->pname, path);
-  trace ("exec %s rip %#x rdi %d rsp %#x\n", path, proc->tf->rip, proc->tf->rdi, proc->tf->rsp);
+  trace("exec %s rip %#x rdi %d rsp %#x\n", path, proc->tf->rip, proc->tf->rdi,
+        proc->tf->rsp);
 
   freevm(oldvm);
   switchvm(proc->vm);
 
   return 0;
 err:
-  panic ("err");
+  panic("err");
   freevm(vm);
   return -1;
 }
 
-static int
-sysexec (const char * USER path, const char ** USER argv)
-{
+static int sysexec(const char *USER path, const char **USER argv) {
   // TODO: copyuser
-  return exec (path, argv);
+  return exec(path, argv);
 }
 
-SYSCALL_DEFINE (SYS_EXEC, sysexec);
+SYSCALL_DEFINE(SYS_EXEC, sysexec);
 
-static int
-fork(void)
-{
+static int fork(void) {
   struct cpu *cpu = mycpu();
   struct proc *proc = cpu->current;
   struct proc *np = newproc(proc->pname, proc, true, NULL, NULL);
@@ -325,127 +280,95 @@ fork(void)
   np->tf->rax = 0;
   np->cwd = idup(proc->cwd);
   copyvm(proc, np);
-
   ready(np);
-
   return np->procid;
 }
 
 SYSCALL_DEFINE(SYS_FORK, fork);
 
-int NORETURN
-idleprocess(void *a)
-{
+int NORETURN idleprocess(void *a) {
   for (;;)
     HLT;
 }
 
-int
-spawn(char *pname, struct proc *parent, int (*pfunc) (void *arg), void *parg)
-{
-  struct proc *p;
-
-  p = newproc(pname, parent, false, pfunc, parg);
+int spawn(char *pname, struct proc *parent, int (*pfunc)(void *arg),
+          void *parg) {
+  struct proc *p = newproc(pname, parent, false, pfunc, parg);
   if (!p)
     return -1;
-
   if (strcmp(pname, "kidle") == 0) {
     kidle = p;
     return 0;
   }
-
-  ready (p);
+  ready(p);
   return 0;
 }
 
-void
-sleep(struct chan *chan, int (*cb)(void *), void *arg)
-{
+void sleep(struct chan *chan, int (*cb)(void *), void *arg) {
   struct proc *p = mycpu()->current;
-
   while (!(*cb)(arg)) {
     chan->proc = p;
     block(p);
     schedule();
   }
-
   chan->proc = NULL;
 }
 
-void
-wakeup(struct chan *chan)
-{
+void wakeup(struct chan *chan) {
   struct proc *p = chan->proc;
-
   if (p) {
     ready(p);
     chan->proc = NULL;
   }
 }
 
-int
-exit(int status)
-{
+int exit(int status) {
   struct cpu *cpu = mycpu();
   struct proc *proc = cpu->current;
   struct proc *pp = PARENT(&proc->pn, struct proc, pn);
 
   proc->exitstatus = status;
   dead(proc);
-
   if (pp) {
     list_add(&pp->waitq, &proc->wqn);
     wakeup(&pp->chan);
   }
-
   schedule();
   // never return here
   return -1;
 }
-
 SYSCALL_DEFINE(SYS_EXIT, exit);
 
-static int
-wq_coming(void *p)
-{
+static int wq_coming(void *p) {
   struct proc *proc = p;
-
   return !list_empty(&proc->waitq);
 }
 
-int
-wait(int *status)
-{
+int wait(int *status) {
   struct cpu *cpu = mycpu();
   struct proc *proc = cpu->current;
   struct proc *p;
   int pid;
 
-  if (!nchild(&proc->pn)) {
-    // no child
+  // nochild
+  if (!nchild(&proc->pn))
     return -1;
-  }
-
   sleep(&proc->chan, wq_coming, proc);
-
   p = LIST_ENTRY(&proc->waitq, struct proc, wqn);
   list_delete(&p->wqn);
   if (p->state != ZOMBIE)
     panic("non zombie");
   pid = p->procid;
-  if (status) {
-    // xxx: use copyout
+  // xxx: use copyout
+  if (status)
     *status = p->exitstatus;
-  }
   freeproc(p);
   return pid;
 }
 
 SYSCALL_DEFINE(SYS_WAIT, wait);
 
-static struct proc *
-nextproc(struct proc *prev)
-{
+static struct proc *nextproc(struct proc *prev) {
   struct proc *p;
 
   if (prev && prev->state == RUNNING)
@@ -457,22 +380,16 @@ nextproc(struct proc *prev)
   return p;
 }
 
-void
-schedtail(void)
-{
-  return;
-}
+void schedtail(void) { return; }
 
-void
-schedule (void)
-{
+void schedule(void) {
   struct cpu *cpu = mycpu();
   struct proc *prev = cpu->current;
   struct proc *next = nextproc(prev);
   struct context *c;
 
   if (!next)
-    panic ("next process!?");
+    panic("next process!?");
 
   cpu->current = next;
   next->cpu = cpu;
@@ -480,7 +397,8 @@ schedule (void)
 
   /*
   log("cswitch: prev %p(%d, %s) -> %p(%d, %s) @%p\n",
-      prev, prev ? prev->procid : -1, prev ? prev->pname : "NULL", next, next->procid, next->pname, next->tf->rip);
+      prev, prev ? prev->procid : -1, prev ? prev->pname : "NULL", next,
+  next->procid, next->pname, next->tf->rip);
       */
 
   if (UNLIKELY(!prev))

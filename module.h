@@ -1,34 +1,32 @@
 #ifndef _MODULE_H
 #define _MODULE_H
 
-#include <kernel.h>
 #include <elf.h>
+#include <kernel.h>
 
-typedef struct MODULE   MODULE;
-typedef struct MODELF   MODELF;
+typedef struct MODULE MODULE;
+typedef struct MODELF MODELF;
 
-struct MODULE
-{
-  const char      *name;
-  const char      *description;
-  MODELF          *elf;
+struct MODULE {
+  const char *name;
+  const char *description;
+  MODELF *elf;
 
-  void            (*init) (void);
-  void            (*delete) (void);
+  void (*init)(void);
+  void (*delete)(void);
 
-  bool            initialized;
-  const char      *deps;
+  bool initialized;
+  const char *deps;
 };
 
-struct MODELF
-{
-       ; 
+struct MODELF {
+  ;
 };
 
-int moduleload (MODELF *elf);
-void initmodule (void);
+int moduleload(MODELF *elf);
+void initmodule(void);
 
-#define MODULE_DECL     \
-  static USED SECTION (".module") ALIGNED (_Alignof (MODULE)) MODULE
+#define MODULE_DECL                                                            \
+  static USED SECTION(".module") ALIGNED(_Alignof(MODULE)) MODULE
 
-#endif  // _MODULE_H
+#endif // _MODULE_H

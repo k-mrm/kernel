@@ -1,17 +1,15 @@
-#include <kernel.h>
 #include <cpu.h>
 #include <kalloc.h>
+#include <kernel.h>
 
-#define KPREFIX   "cpu:"
+#define KPREFIX "cpu:"
 
 #include <printk.h>
 
 static ROOT(cputree);
 
-static void *
-find_cpu(struct tree *node, void *arg)
-{
-  struct cpu *cpu = TREE_ENTRY(node, struct cpu, cn); 
+static void *find_cpu(struct tree *node, void *arg) {
+  struct cpu *cpu = TREE_ENTRY(node, struct cpu, cn);
   uint id = (uint)(ulong)arg;
 
   if (cpu->cpuid == id)
@@ -20,21 +18,15 @@ find_cpu(struct tree *node, void *arg)
     return NULL;
 }
 
-struct cpu *
-mycpu(void)
-{
+struct cpu *mycpu(void) {
   return tree_dfs(&cputree, find_cpu, (void *)(ulong)0 /* tmp */);
 }
 
-struct cpu *
-getcpu(int id)
-{
+struct cpu *getcpu(int id) {
   return tree_dfs(&cputree, find_cpu, (void *)(ulong)id);
 }
 
-void
-initcpu(int cpuid)
-{
+void initcpu(int cpuid) {
   struct cpu *cpu = zalloc();
 
   if (!cpu)

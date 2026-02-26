@@ -1,31 +1,21 @@
-#include <kernel.h>
-#include <fs.h>
 #include <block.h>
-#include <module.h>
-#include <string.h>
+#include <fs.h>
 #include <kalloc.h>
+#include <kernel.h>
+#include <module.h>
 #include <panic.h>
+#include <string.h>
 
 #define KPREFIX "ext2:"
 
-#include <printk.h>
 #include "ext2.h"
+#include <printk.h>
 
-static struct buf *
-getsb (struct fs *fs)
-{
-  return bread(fs->dev, 1);
-}
+static struct buf *getsb(struct fs *fs) { return bread(fs->dev, 1); }
 
-static struct buf *
-getbg(struct fs *fs)
-{
-  return bread(fs->dev, 2);
-}
+static struct buf *getbg(struct fs *fs) { return bread(fs->dev, 2); }
 
-static int
-findblock (EXT2_FS *ext2, struct buf *bbmp)
-{
+static int findblock(EXT2_FS *ext2, struct buf *bbmp) {
   char chunk = 0xff;
   int bnum = 0;
   int bsize = 1024 << ext2->sb.s_log_block_size;
@@ -36,18 +26,16 @@ findblock (EXT2_FS *ext2, struct buf *bbmp)
     bnum += 8;
   }
 
-  if (chunk == 0xff)   /* no free inode */
+  if (chunk == 0xff) /* no free inode */
     return -1;
 
-  for(; chunk & 1; chunk >>= 1)
+  for (; chunk & 1; chunk >>= 1)
     bnum++;
 
   return bnum;
 }
 
-static int
-bbmpwrite (EXT2_FS *ext2, struct buf *bbmp, int bno, int bit)
-{
+static int bbmpwrite(EXT2_FS *ext2, struct buf *bbmp, int bno, int bit) {
   int bitn = bno;
   int chunkn;
   char c;
@@ -75,9 +63,7 @@ found:
   return 0;
 }
 
-static int
-findino(EXT2_FS *ext2, struct buf *ibmp)
-{
+static int findino(EXT2_FS *ext2, struct buf *ibmp) {
   char chunk = 0xff;
   int inum = 1;
   int bsize = 1024 << ext2->sb.s_log_block_size;
@@ -88,18 +74,16 @@ findino(EXT2_FS *ext2, struct buf *ibmp)
     inum += 8;
   }
 
-  if (chunk == 0xff)   /* no free inode */
+  if (chunk == 0xff) /* no free inode */
     return -1;
 
-  for(; chunk & 1; chunk >>= 1)
+  for (; chunk & 1; chunk >>= 1)
     inum++;
 
   return inum;
 }
 
-static int
-ibmpwrite (EXT2_FS *ext2, struct buf *ibmp, int ino, int bit)
-{
+static int ibmpwrite(EXT2_FS *ext2, struct buf *ibmp, int ino, int bit) {
   int bitn = ino - 1;
   int chunkn;
   char c;
@@ -127,9 +111,7 @@ found:
   return 0;
 }
 
-static int
-ext2allocinum(struct fs *fs)
-{
+static int ext2allocinum(struct fs *fs) {
   EXT2_FS *ext2 = fs->priv;
   struct buf *ibmp = bread(fs->dev, ext2->bg.bg_inode_bitmap);
   int inum;
@@ -145,9 +127,7 @@ ext2allocinum(struct fs *fs)
   return inum;
 }
 
-static int
-ext2allocblock(struct fs *fs)
-{
+static int ext2allocblock(struct fs *fs) {
   EXT2_FS *ext2 = fs->priv;
   struct buf *bbmp = bread(fs->dev, ext2->bg.bg_block_bitmap);
   int bno;
@@ -163,21 +143,19 @@ ext2allocblock(struct fs *fs)
   return bno;
 }
 
-static int
-ext2probe (struct fs *fs)
-{
+static int ext2probe(struct fs *fs) {
   struct buf *sbb, *bgb;
   EXT2_FS *ext2;
 
-  ext2 = alloc ();
+  ext2 = alloc();
 
-  sbb = getsb (fs);
-  bgb = getbg (fs);
+  sbb = getsb(fs);
+  bgb = getbg(fs);
   if (!sbb || !bgb)
     return -1;
 
-  memcpy (&ext2->sb, sbb->data, sizeof (ext2->sb));
-  memcpy (&ext2->bg, bgb->data, sizeof (ext2->bg));
+  memcpy(&ext2->sb, sbb->data, sizeof(ext2->sb));
+  memcpy(&ext2->bg, bgb->data, sizeof(ext2->bg));
 
   brelease(sbb);
   brelease(bgb);
@@ -187,23 +165,18 @@ ext2probe (struct fs *fs)
   return 0;
 }
 
-static struct inode *
-ext2createi(struct fs *fs, char *name, struct inode *dir, int mode, int dev)
-{
+static struct inode *ext2createi(struct fs *fs, char *name, struct inode *dir,
+                                 int mode, int dev) {
   return NULL;
 }
 
-static void
-ext2isync (struct inode *ino)
-{
+static void ext2isync(struct inode *ino) {
   struct fs *fs = ino->fs;
   EXT2_INODE *ei = ino->priv;
   // TODO
 }
 
-static EXT2_INODE *
-rawinode (EXT2_FS *ext2, int inum, struct buf **bp)
-{
+static EXT2_INODE *rawinode(EXT2_FS *ext2, int inum, struct buf **bp) {
   struct fs *fs = ext2->fs;
   int bsize = 1024 << ext2->sb.s_log_block_size;
   int inosize = ext2->sb.s_inode_size;
@@ -217,13 +190,11 @@ rawinode (EXT2_FS *ext2, int inum, struct buf **bp)
   return (EXT2_INODE *)(itable->data + offset);
 }
 
-static struct inode *
-ext2iget (struct fs *fs, int inum)
-{
+static struct inode *ext2iget(struct fs *fs, int inum) {
   EXT2_FS *ext2 = fs->priv;
-  struct inode *i = iget (fs, inum);
+  struct inode *i = iget(fs, inum);
   struct buf *b;
-  EXT2_INODE *e = rawinode (ext2, inum, &b);
+  EXT2_INODE *e = rawinode(ext2, inum, &b);
 
   if (!i)
     return NULL;
@@ -238,94 +209,81 @@ ext2iget (struct fs *fs, int inum)
   i->dtime = e->i_dtime;
   i->links_count = e->i_links_count;
   i->blocks = e->i_blocks;
-  memcpy (i->block, e->i_block, sizeof(u32) * 15);
+  memcpy(i->block, e->i_block, sizeof(u32) * 15);
   i->priv = e;
   i->buf = b;
 
   return i;
 }
 
-static struct inode *
-ext2rootinode (struct fs *fs)
-{
+static struct inode *ext2rootinode(struct fs *fs) {
   return ext2iget(fs, EXT2_ROOT_INO);
 }
 
 #define ext2inodenblock(_ei) ((_ei)->i_blocks / (2 << 0))
 
-static struct buf *
-ext2readindirect (struct fs *fs, u32 *map, int bi)
-{
+static struct buf *ext2readindirect(struct fs *fs, u32 *map, int bi) {
   int idx = bi - 12;
-  return bread (fs->dev, map[idx]);
+  return bread(fs->dev, map[idx]);
 }
 
-static struct buf *
-ext2inodeblock(struct inode *ino, int bi)
-{
-  struct fs *fs = ino->fs; 
+static struct buf *ext2inodeblock(struct inode *ino, int bi) {
+  struct fs *fs = ino->fs;
   struct buf *map, *b;
 
   if (bi < 12) {
-    trace ("INODE SIZE %d %d\n", ino->size, ino->inum);
-    return bread (fs->dev, ino->block[bi]);
+    trace("INODE SIZE %d %d\n", ino->size, ino->inum);
+    return bread(fs->dev, ino->block[bi]);
   } else {
     map = bread(fs->dev, ino->block[12]);
-    b = ext2readindirect (fs, (u32 *)map->data, bi);
-    brelease (map);
+    b = ext2readindirect(fs, (u32 *)map->data, bi);
+    brelease(map);
     return b;
   }
 
   return NULL;
 }
 
-static int
-ext2searchdirent (EXT2_FS *ext2, unsigned char *blk, char *path)
-{
+static int ext2searchdirent(EXT2_FS *ext2, unsigned char *blk, char *path) {
   EXT2_DENTRY *d;
   char buf[EXT2_DIRENT_NAME_MAX];
   int bsize = 1024 << ext2->sb.s_log_block_size;
 
-  for (u64 bpos = 0; bpos < bsize; bpos += d->rec_len)
-  {
+  for (u64 bpos = 0; bpos < bsize; bpos += d->rec_len) {
     d = (EXT2_DENTRY *)(blk + bpos);
 
-    memset (buf, 0, EXT2_DIRENT_NAME_MAX);
-    memcpy (buf, d->name, d->name_len);
-    if (strcmp (buf, path) == 0)
+    memset(buf, 0, EXT2_DIRENT_NAME_MAX);
+    memcpy(buf, d->name, d->name_len);
+    if (strcmp(buf, path) == 0)
       return d->inode;
   }
 
   return -1;
 }
 
-static int
-ext2search(struct inode *pi, char *basename)
-{
+static int ext2search(struct inode *pi, char *basename) {
   struct fs *fs = pi->fs;
   EXT2_FS *ext2 = fs->priv;
   EXT2_INODE *ei = pi->priv;
   struct buf *db;
   int inum;
 
-  for (int i = 0; i < ext2inodenblock (ei); i++) {
-    db = ext2inodeblock (pi, i);
+  for (int i = 0; i < ext2inodenblock(ei); i++) {
+    db = ext2inodeblock(pi, i);
     if (!db)
       continue;
 
-    if ((inum = ext2searchdirent (ext2, db->data, basename)) > 0) {
-      brelease (db);
+    if ((inum = ext2searchdirent(ext2, db->data, basename)) > 0) {
+      brelease(db);
       return inum;
     }
-    brelease (db);
+    brelease(db);
   }
 
   return -1;
 }
 
-static int
-ext2readi(struct inode *ino, unsigned char *buf, u64 off, u64 size)
-{
+static int ext2readi(struct inode *ino, unsigned char *buf, u64 off, u64 size) {
   struct fs *fs = ino->fs;
   EXT2_FS *ext2 = fs->priv;
   EXT2_INODE *ei = ino->priv;
@@ -344,31 +302,31 @@ ext2readi(struct inode *ino, unsigned char *buf, u64 off, u64 size)
   lastblk = (size + off) / bsize;
   offblkoff = off % bsize;
 
-  for (int i = offblk; i < ext2inodenblock (ei) && i <= lastblk; i++) {
+  for (int i = offblk; i < ext2inodenblock(ei) && i <= lastblk; i++) {
     b = ext2inodeblock(ino, i);
-    cpsize = MIN (size, bsize);
+    cpsize = MIN(size, bsize);
 
     if (offblkoff + cpsize > bsize)
       cpsize = bsize - offblkoff;
 
-    memcpy (buf, b->data + offblkoff, cpsize);
+    memcpy(buf, b->data + offblkoff, cpsize);
 
     if (ino->size == 0)
-      panic ("!?188");
+      panic("!?188");
     buf += cpsize;
     size -= cpsize;
     offblkoff = 0;
 
-    brelease (b);
+    brelease(b);
     if (ino->size == 0)
-      panic ("!?100");
+      panic("!?100");
   }
 
   return buf - base;
 }
 
-static int
-ext2writei(struct inode *ino, unsigned char *buf, u64 off, u64 size) {
+static int ext2writei(struct inode *ino, unsigned char *buf, u64 off,
+                      u64 size) {
   struct fs *fs = ino->fs;
   EXT2_FS *ext2 = fs->priv;
   EXT2_INODE *ei = ino->priv;
@@ -391,61 +349,55 @@ ext2writei(struct inode *ino, unsigned char *buf, u64 off, u64 size) {
      ext2growinoblock (ino, lastblk - ext2inodenblock (ei));
      */
 
-  for (int i = offblk; i < ext2inodenblock (ei) && i <= lastblk; i++) {
-    b = ext2inodeblock (ino, i);
-    cpsize = MIN (size, bsize);
+  for (int i = offblk; i < ext2inodenblock(ei) && i <= lastblk; i++) {
+    b = ext2inodeblock(ino, i);
+    cpsize = MIN(size, bsize);
 
     if (offblkoff + cpsize > bsize)
       cpsize = bsize - offblkoff;
 
-    memcpy (b->data + offblkoff, buf, cpsize);
+    memcpy(b->data + offblkoff, buf, cpsize);
     b->flags |= B_DIRTY;
 
     buf += cpsize;
     size = size > bsize ? size - bsize : 0;
     offblkoff = 0;
 
-    brelease (b);
+    brelease(b);
   }
 
-  ext2isync (ino);
+  ext2isync(ino);
 
   return sz;
 }
 
-static bool
-ext2fsisme (unsigned char *sbd)
-{
+static bool ext2fsisme(unsigned char *sbd) {
   EXT2SUPERBLOCK *sb = (EXT2SUPERBLOCK *)sbd;
 
   return sb->s_magic == 0xef53;
 }
 
 static struct fs_if ext2if = {
-  .name           = "ext2",
-  .probe          = ext2probe,
-  .createi        = ext2createi,
-  .iget           = ext2iget,
-  .rootinode      = ext2rootinode,
-  .sync           = ext2isync,
-  .search         = ext2search,
-  .readi          = ext2readi,
-  .writei         = ext2writei,
-  /*
-     .mkdir          = ext2mkdir,
-     */
-  .fsisme         = ext2fsisme,
+    .name = "ext2",
+    .probe = ext2probe,
+    .createi = ext2createi,
+    .iget = ext2iget,
+    .rootinode = ext2rootinode,
+    .sync = ext2isync,
+    .search = ext2search,
+    .readi = ext2readi,
+    .writei = ext2writei,
+    /*
+       .mkdir          = ext2mkdir,
+       */
+    .fsisme = ext2fsisme,
 };
 
-void
-ext2init (void)
-{
-  new_fs(&ext2if);
-}
+void ext2init(void) { new_fs(&ext2if); }
 
 MODULE_DECL ext2 = {
-  .name           = "ext2",
-  .description    = "ext2 file system",
-  .init           = ext2init,
-  .delete         = NULL,
+    .name = "ext2",
+    .description = "ext2 file system",
+    .init = ext2init,
+    .delete = NULL,
 };

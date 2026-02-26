@@ -5,4 +5,4 @@
 
 int hpetinit(ulong baseaddr, int n);
 
-#endif  // _HPET_H
+#endif // _HPET_H

@@ -1,15 +1,11 @@
-#include <kernel.h>
 #include "string.h"
+#include <kernel.h>
 
-void *
-memcpy (void *dst, const void *src, ulong n)
-{
-  return memmove (dst, src, n);
+void *memcpy(void *dst, const void *src, ulong n) {
+  return memmove(dst, src, n);
 }
 
-void *
-memmove (void *dst, const void *src, ulong n)
-{
+void *memmove(void *dst, const void *src, ulong n) {
   char *d = dst;
   const char *s = src;
 
@@ -25,9 +21,7 @@ memmove (void *dst, const void *src, ulong n)
   return dst;
 }
 
-void *
-memset (void *dst, int c, ulong n)
-{
+void *memset(void *dst, int c, ulong n) {
   char *d = dst;
 
   while (n-- > 0)
@@ -35,9 +29,7 @@ memset (void *dst, int c, ulong n)
   return dst;
 }
 
-char *
-strcpy (char *dst, const char *src)
-{
+char *strcpy(char *dst, const char *src) {
   char *r = dst;
 
   while ((*dst++ = *src++) != 0)
@@ -45,9 +37,7 @@ strcpy (char *dst, const char *src)
   return r;
 }
 
-int
-strcmp (const char *s1, const char *s2)
-{
+int strcmp(const char *s1, const char *s2) {
   while (*s1 && *s1 == *s2) {
     s1++;
     s2++;
@@ -55,9 +45,7 @@ strcmp (const char *s1, const char *s2)
   return *s1 - *s2;
 }
 
-int
-strncmp (const char *s1, const char *s2, ulong len)
-{
+int strncmp(const char *s1, const char *s2, ulong len) {
   while (*s1 && *s1 == *s2 && len > 0) {
     s1++;
     s2++;
@@ -68,22 +56,18 @@ strncmp (const char *s1, const char *s2, ulong len)
   return *s1 - *s2;
 }
 
-uint
-strlen (const char *s)
-{
+uint strlen(const char *s) {
   uint i = 0;
   while (*s++)
     i++;
   return i;
 }
 
-char *
-strchr (const char *s, int c)
-{
+char *strchr(const char *s, int c) {
   char *p = (char *)s;
 
   while (*p) {
-    if(*p == c)
+    if (*p == c)
       return p;
     p++;
   }
@@ -91,9 +75,7 @@ strchr (const char *s, int c)
   return NULL;
 }
 
-char *
-strtok (char *s1, const char *s2)
-{
+char *strtok(char *s1, const char *s2) {
   static char *save = "";
   char *s;
 
@@ -104,7 +86,7 @@ strtok (char *s1, const char *s2)
   s = s1;
 
   while (*s1) {
-    if (strchr (s2, *s1)) {
+    if (strchr(s2, *s1)) {
       *s1++ = 0;
       save = s1;
       return s;

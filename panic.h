@@ -5,4 +5,4 @@
 
 void panic(char *msg, ...) NORETURN;
 
-#endif  // _PANIC_H
+#endif // _PANIC_H

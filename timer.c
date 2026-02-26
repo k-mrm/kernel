@@ -1,30 +1,22 @@
 #include <kernel.h>
-#include <timer.h>
 #include <panic.h>
 #include <printk.h>
 #include <proc.h>
+#include <timer.h>
 #include <x86/cpu.h>
 
-#define MSEC2USEC       1000
+#define MSEC2USEC 1000
 
 static struct timer *systimer;
 
-static struct timer *
-usingtimer(void)
-{
-  return systimer;
-}
+static struct timer *usingtimer(void) { return systimer; }
 
-void
-msleep(uint msec)
-{
+void msleep(uint msec) {
   uint usec = msec * MSEC2USEC;
   usleep(usec);
 }
 
-void
-usleep(uint usec)
-{
+void usleep(uint usec) {
   struct timer *timer = usingtimer();
   ulong now, after;
 
@@ -37,11 +29,9 @@ usleep(uint usec)
     ;
 }
 
-int
-eventtimerirq(struct irq *irq)
-{
+int eventtimerirq(struct irq *irq) {
   struct device *dev = irq_device(irq);
-  struct eventtimer *et = dev_eventtimer(dev); 
+  struct eventtimer *et = dev_eventtimer(dev);
   int ret;
 
   ret = et->ops->irqhandler(et, irq);
@@ -52,9 +42,7 @@ eventtimerirq(struct irq *irq)
   return ret;
 }
 
-int
-probe_evtimer(struct device *dev)
-{
+int probe_evtimer(struct device *dev) {
   struct eventtimer *et = container_of(dev, struct eventtimer, dev);
 
   if (et->global) {
@@ -65,9 +53,7 @@ probe_evtimer(struct device *dev)
   return 0;
 }
 
-int
-probe_timer(struct device *dev)
-{
+int probe_timer(struct device *dev) {
   struct timer *tm = container_of(dev, struct timer, dev);
 
   if (tm->global) {

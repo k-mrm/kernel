@@ -1,8 +1,6 @@
 #include <syscall.h>
-  
-int 
-main (void)
-{
+
+int main(void) {
   int pid;
   const char *args[1] = {"cat"};
 

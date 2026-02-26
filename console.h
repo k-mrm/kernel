@@ -1,10 +1,10 @@
 #ifndef _CONSOLE_H
 #define _CONSOLE_H
 
-#include <kernel.h>
 #include <device.h>
-#include <proc.h>
 #include <irq.h>
+#include <kernel.h>
+#include <proc.h>
 
 struct console;
 
@@ -33,11 +33,11 @@ struct console {
   struct chan chan;
 };
 
-#define dev_console(_d)         container_of(_d, struct console, dev)
+#define dev_console(_d) container_of(_d, struct console, dev)
 
 extern struct console *console;
 
 int probe_console(struct console *cs);
 int console_irq(struct irq *irq);
 
-#endif  // _CONSOLE_H
+#endif // _CONSOLE_H

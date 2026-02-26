@@ -1,74 +1,60 @@
-#include <kernel.h>
-#include <irq.h>
-#include <device.h>
-#include <vm.h>
-#include <kalloc.h>
-#include <string.h>
+#include "apic.h"
 #include "arch.h"
 #include "mm.h"
-#include "apic.h"
+#include <device.h>
+#include <irq.h>
+#include <kalloc.h>
+#include <kernel.h>
+#include <string.h>
+#include <vm.h>
 
-#define KPREFIX     "ioapic:"
+#define KPREFIX "ioapic:"
 
 #include <printk.h>
 
-#define IOREGSEL        0x00
-#define IOWIN           0x10
-#define IOEOI           0x40
+#define IOREGSEL 0x00
+#define IOWIN 0x10
+#define IOEOI 0x40
 
-#define IOAPICID        0x00
-#define IOAPICVER       0x01
-#define IOREDTBL(_n)    (0x10 + 2 * (_n))
+#define IOAPICID 0x00
+#define IOAPICVER 0x01
+#define IOREDTBL(_n) (0x10 + 2 * (_n))
 
-#define REDIR_MASK      (1 << 16)
+#define REDIR_MASK (1 << 16)
 
-struct ioapic
-{
+struct ioapic {
   volatile void *base;
   u64 pbase;
   u32 id;
   u32 maxredir;
 };
 
-struct ioapic_irq
-{
+struct ioapic_irq {
   struct ioapic *ioapic;
-  int irqno;      
+  int irqno;
 };
 
 static struct ioapic ioapic0;
 
-static u32
-ioapicread(struct ioapic *ioa, u32 reg)
-{
+static u32 ioapicread(struct ioapic *ioa, u32 reg) {
   *(volatile u32 *)(ioa->base + IOREGSEL) = reg;
   return *(volatile u32 *)(ioa->base + IOWIN);
 }
 
-static void
-ioapicwrite(struct ioapic *ioa, u32 reg, u32 val)
-{
+static void ioapicwrite(struct ioapic *ioa, u32 reg, u32 val) {
   *(volatile u32 *)(ioa->base + IOREGSEL) = reg;
   *(volatile u32 *)(ioa->base + IOWIN) = val;
 }
 
-static int
-ioapic_ack(struct irq *irq)
-{
-  return -1;
-}
+static int ioapic_ack(struct irq *irq) { return -1; }
 
-static void
-ioapic_eoi(struct irq *irq)
-{
+static void ioapic_eoi(struct irq *irq) {
   struct ioapic *ioa = &ioapic0;
 
   ioapicwrite(ioa, IOEOI, irq->irqno);
 }
 
-static int
-ioapic_enirq(struct irq *irq)
-{
+static int ioapic_enirq(struct irq *irq) {
   struct ioapic *ioa = &ioapic0;
   struct ioapic_irq *ioirq = irq->priv;
   int pin = ioirq->irqno;
@@ -82,15 +68,9 @@ ioapic_enirq(struct irq *irq)
   return 0;
 }
 
-static int
-ioapic_disirq(struct irq *irq)
-{
-  return -1;
-}
+static int ioapic_disirq(struct irq *irq) { return -1; }
 
-static int
-ioapic_probe(struct device *dev)
-{
+static int ioapic_probe(struct device *dev) {
   struct ioapic *ioa = &ioapic0;
   u32 ver;
 
@@ -113,9 +93,8 @@ ioapic_probe(struct device *dev)
   return probe_irqchip(dev);
 }
 
-static struct irq *
-ioapic_new_irq(struct irqchip *ic, struct device *dev, int irqno, int (*handler)(struct irq *irq))
-{
+static struct irq *ioapic_new_irq(struct irqchip *ic, struct device *dev,
+                                  int irqno, int (*handler)(struct irq *irq)) {
   struct ioapic *ioa = &ioapic0;
   struct ioapic_irq *ioirq;
   struct irq *irq;
@@ -134,26 +113,24 @@ ioapic_new_irq(struct irqchip *ic, struct device *dev, int irqno, int (*handler)
 }
 
 static struct driver ioapic_drv = {
-  .name           = "IOAPIC",
-  .description    = "I/O APIC Driver",
-  .probe          = ioapic_probe,
-  .suspend        = NULL,
-  .resume         = NULL,
-  .param          = "",
+    .name = "IOAPIC",
+    .description = "I/O APIC Driver",
+    .probe = ioapic_probe,
+    .suspend = NULL,
+    .resume = NULL,
+    .param = "",
 };
 
 struct irqchip ioapic_chip = {
-  .parent = &lapic_chip,
-  .new_irq = ioapic_new_irq,
-  .ack = ioapic_ack,
-  .eoi = ioapic_eoi,
-  .enable_irq = ioapic_enirq,
-  .disable_irq = ioapic_disirq,
+    .parent = &lapic_chip,
+    .new_irq = ioapic_new_irq,
+    .ack = ioapic_ack,
+    .eoi = ioapic_eoi,
+    .enable_irq = ioapic_enirq,
+    .disable_irq = ioapic_disirq,
 };
 
-void
-ioapicinit(u32 id, u32 addr, u32 gsi)
-{
+void ioapicinit(u32 id, u32 addr, u32 gsi) {
   struct ioapic *ioa = &ioapic0;
 
   ioa->pbase = addr;

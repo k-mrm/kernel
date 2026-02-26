@@ -1,15 +1,14 @@
 #ifndef _PROC_H
 #define _PROC_H
 
-#include <kernel.h>
 #include <cpu.h>
-#include <vm.h>
 #include <fs.h>
+#include <kernel.h>
+#include <vm.h>
 #include <x86/context.h>
 #include <x86/trap.h>
 
-enum procstate
-{
+enum procstate {
   NONE,
   READY,
   RUNNING,
@@ -17,17 +16,15 @@ enum procstate
   ZOMBIE,
 };
 
-struct chan
-{
+struct chan {
   struct proc *proc;
 };
 
-struct proc
-{
+struct proc {
   enum procstate state;
   char pname[32];
 
-  struct vm *vm;    // address space
+  struct vm *vm; // address space
   uint procid;
   struct cpu *cpu;
   struct trapframe *tf;
@@ -36,7 +33,7 @@ struct proc
   void *ksp;
 
   struct inode *cwd;
-  
+
   struct tree pn;
 
   struct list waitq;
@@ -65,5 +62,4 @@ int exit(int status);
 void sleep(struct chan *chan, int (*cb)(void *), void *arg);
 void wakeup(struct chan *chan);
 
-
-#endif  // _PROC_H
+#endif // _PROC_H

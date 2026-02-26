@@ -1,16 +1,14 @@
-#include <kernel.h>
-#include <string.h>
 #include <console.h>
+#include <kernel.h>
 #include <printk.h>
 #include <proc.h>
+#include <string.h>
 
-#define C(x)  ((x)-'@')
+#define C(x) ((x) - '@')
 
 struct console *console = NULL;
 
-int
-probe_console(struct console *cs)
-{
+int probe_console(struct console *cs) {
   memset(&cs->buf, 0, sizeof cs->buf);
   cs->buf.cbuf = &cs->buf.buf[0];
 
@@ -18,9 +16,7 @@ probe_console(struct console *cs)
   return 0;
 }
 
-static struct cbuf *
-flipped(struct flipbuf *fbuf)
-{
+static struct cbuf *flipped(struct flipbuf *fbuf) {
   if (fbuf->cbuf == &fbuf->buf[0])
     return &fbuf->buf[1];
   else if (fbuf->cbuf == &fbuf->buf[1])
@@ -28,15 +24,9 @@ flipped(struct flipbuf *fbuf)
   return NULL;
 }
 
-static void
-flip(struct flipbuf *fbuf)
-{
-  fbuf->cbuf = flipped(fbuf);
-}
+static void flip(struct flipbuf *fbuf) { fbuf->cbuf = flipped(fbuf); }
 
-static int
-fbuf_wr(struct flipbuf *fbuf, char c)
-{
+static int fbuf_wr(struct flipbuf *fbuf, char c) {
   struct cbuf *cbuf = fbuf->cbuf;
 
   cbuf->data[cbuf->write++ % 2048] = c;
@@ -44,9 +34,7 @@ fbuf_wr(struct flipbuf *fbuf, char c)
   return 0;
 }
 
-static char
-fbuf_rd(struct flipbuf *fbuf)
-{
+static char fbuf_rd(struct flipbuf *fbuf) {
   struct cbuf *cbuf = flipped(fbuf);
 
   if (cbuf->read == cbuf->write) {
@@ -56,18 +44,14 @@ fbuf_rd(struct flipbuf *fbuf)
   return cbuf->data[cbuf->read++ % 2048];
 }
 
-static int
-coming(void *arg)
-{
+static int coming(void *arg) {
   struct flipbuf *fbuf = arg;
   struct cbuf *cbuf = flipped(fbuf);
 
   return cbuf->read != cbuf->write;
 }
 
-int
-consread(char *buf, int size)
-{
+int consread(char *buf, int size) {
   struct console *cs = console;
   int n = size;
   char c;
@@ -88,9 +72,7 @@ consread(char *buf, int size)
   return size - n;
 }
 
-int
-console_irq(struct irq *irq)
-{
+int console_irq(struct irq *irq) {
   struct console *cs = dev_console(irq_device(irq));
   struct flipbuf *fbuf = &cs->buf;
   char c;

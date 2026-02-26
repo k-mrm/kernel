@@ -1,21 +1,21 @@
 #ifndef _BLOCK_H
 #define _BLOCK_H
 
-#include <kernel.h>
 #include <device.h>
 #include <irq.h>
+#include <kernel.h>
 
-#define B_VALID         (1)
-#define B_DIRTY         (1 << 1)
-#define BSIZE           1024
+#define B_VALID (1)
+#define B_DIRTY (1 << 1)
+#define BSIZE 1024
 
 struct buf {
   struct block *dev;
 
-  int             bno;
-  int             flags;
-  unsigned char   data[BSIZE];
-  uint            refcount;
+  int bno;
+  int flags;
+  unsigned char data[BSIZE];
+  uint refcount;
 
   struct list bn;
 };
@@ -31,7 +31,7 @@ struct block {
   struct list cache;
 };
 
-#define dev_block(_d)   container_of(_d, struct block, dev)
+#define dev_block(_d) container_of(_d, struct block, dev)
 
 int probe_block(struct block *bdev);
 struct buf *bread(struct block *dev, int bno);
@@ -43,4 +43,4 @@ void bsync(void);
 
 struct block *getblkdev(char *name);
 
-#endif  // _BLOCK_H
+#endif // _BLOCK_H

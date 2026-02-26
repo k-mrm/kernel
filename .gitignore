@@ -57,3 +57,5 @@ dkms.conf
 *.img
 *.swp
 *.iso
+
+.clang-format

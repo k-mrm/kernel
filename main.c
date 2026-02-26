@@ -1,22 +1,20 @@
-#include <kernel.h>
-#include <panic.h>
-#include <printk.h>
-#include <kalloc.h>
-#include <timer.h>
-#include <device.h>
-#include <proc.h>
 #include <cpu.h>
-#include <pci.h>
+#include <device.h>
 #include <fs.h>
-#include <syscall.h>
-#include <x86/arch.h>
+#include <kalloc.h>
+#include <kernel.h>
 #include <module.h>
+#include <panic.h>
+#include <pci.h>
+#include <printk.h>
+#include <proc.h>
+#include <syscall.h>
+#include <timer.h>
+#include <x86/arch.h>
 
 void apmain(void) NORETURN;
 
-void NORETURN
-kernelmain (void)
-{
+void NORETURN kernelmain(void) {
   kernelmap();
   kallocinit();
   ramdiskinit();
@@ -33,14 +31,12 @@ kernelmain (void)
   apmain();
 }
 
-void NORETURN
-apmain (void)
-{
-  lsdev ();
+void NORETURN apmain(void) {
+  lsdev();
 
   INTR_ENABLE;
 
   for (;;)
     HLT;
-  panic ("kernelmain exits");
+  panic("kernelmain exits");
 }

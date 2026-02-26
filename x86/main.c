@@ -1,24 +1,22 @@
-#include <kernel.h>
-#include <printk.h>
-#include <multiboot.h>
-#include <acpi.h>
-#include <cpu.h>
-#include <kalloc.h>
 #include "arch.h"
 #include "com.h"
 #include "mm.h"
 #include "pci.h"
+#include <acpi.h>
+#include <cpu.h>
+#include <kalloc.h>
+#include <kernel.h>
+#include <multiboot.h>
+#include <printk.h>
 
-void NORETURN kernelmain (void);
+void NORETURN kernelmain(void);
 
-void NORETURN
-x86main (MultiBootInfo *mb)
-{
+void NORETURN x86main(MultiBootInfo *mb) {
   killbootmap();
   serialportinit();
   mb2parsebootinfo(mb);
   // In x86-64, First 1MB is reserved
-  sysrsrvmem (0x0, 0x100000);
+  sysrsrvmem(0x0, 0x100000);
   reservekernelarea();
   gdtinit();
   x86cpuinit();

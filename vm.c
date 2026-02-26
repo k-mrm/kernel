@@ -1,13 +1,13 @@
-#include <kernel.h>
 #include <kalloc.h>
+#include <kernel.h>
 #include <panic.h>
-#include <vm.h>
 #include <proc.h>
-#include <sysmem.h>
 #include <string.h>
+#include <sysmem.h>
+#include <vm.h>
 #include <x86/mm.h>
 
-#define KPREFIX         "vm:"
+#define KPREFIX "vm:"
 
 #include <printk.h>
 
@@ -16,15 +16,9 @@
  */
 static struct vm kvm;
 
-struct vm *
-kernelvm(void)
-{
-  return &kvm;
-}
+struct vm *kernelvm(void) { return &kvm; }
 
-static PTE *
-pagewalk (struct vm *vm, ulong va, bool allocpgt)
-{
+static PTE *pagewalk(struct vm *vm, ulong va, bool allocpgt) {
   PageTable pgt = vm->pgdir;
   uint level;
   uint vlevel = vm->level;
@@ -36,12 +30,12 @@ pagewalk (struct vm *vm, ulong va, bool allocpgt)
     pte = &pgt[PIDX(level, va)];
 
     if (*pte & ppresent()) {
-      pgtpa = PTE_PA (*pte);
-      pgt = (PageTable)P2V (pgtpa);
+      pgtpa = PTE_PA(*pte);
+      pgt = (PageTable)P2V(pgtpa);
     } else if (allocpgt) {
       pgt = zalloc();
       if (!pgt)
-  return NULL;
+        return NULL;
       pgtpa = V2P(pgt);
       *pte = nexttablepte(pgtpa);
     } else {
@@ -50,28 +44,25 @@ pagewalk (struct vm *vm, ulong va, bool allocpgt)
     }
   }
 
-  return &pgt[PIDX (level, va)];
+  return &pgt[PIDX(level, va)];
 }
 
-void
-mappages(struct vm *vm, ulong va, ulong pa, ulong size, ulong flags, bool remap)
-{
+void mappages(struct vm *vm, ulong va, ulong pa, ulong size, ulong flags,
+              bool remap) {
   PTE *pte;
 
   for (ulong p = 0; p < size; p += PAGESIZE, va += PAGESIZE, pa += PAGESIZE) {
-    pte = pagewalk (vm, va, true);
+    pte = pagewalk(vm, va, true);
     if (!pte)
-      panic ("null pte %p", va);
+      panic("null pte %p", va);
     if (!remap && (*pte & ppresent()))
-      panic ("this entry has been used: va %p", va);
+      panic("this entry has been used: va %p", va);
 
     *pte = pteleaf(pa, flags);
   }
 }
 
-static ulong
-addrwalk(struct vm *vm, ulong va)
-{
+static ulong addrwalk(struct vm *vm, ulong va) {
   PTE *pte = pagewalk(vm, va, false);
 
   if (pte && (*pte & ppresent()))
@@ -80,9 +71,7 @@ addrwalk(struct vm *vm, ulong va)
     return 0;
 }
 
-struct vm *
-uservm(struct proc *proc)
-{
+struct vm *uservm(struct proc *proc) {
   struct vm *vm;
   void *stack;
 
@@ -96,7 +85,7 @@ uservm(struct proc *proc)
 
   stack = zalloc();
   mappages(vm, USTACKBOTTOM, V2P(stack), PAGESIZE,
-     pnormal() | pwritable() | puser(), false);
+           pnormal() | pwritable() | puser(), false);
   vm->ustack = stack;
   vm->ustacksize = PAGESIZE;
 
@@ -108,9 +97,7 @@ uservm(struct proc *proc)
   return vm;
 }
 
-void
-copyvm(struct proc *proc, struct proc *np)
-{
+void copyvm(struct proc *proc, struct proc *np) {
   struct vm *vm = uservm(np);
   PTE *pte;
   ulong pa;
@@ -118,24 +105,23 @@ copyvm(struct proc *proc, struct proc *np)
   void *p;
 
   // copy code
-  trace ("copyvas %d\n", proc->vm->csize);
-  for (u64 i = 0; i < proc->vm->csize; i += PAGESIZE)
-  {
-    pte = pagewalk (proc->vm, (ulong)proc->vm->ustart + i, true);
+  trace("copyvas %d\n", proc->vm->csize);
+  for (u64 i = 0; i < proc->vm->csize; i += PAGESIZE) {
+    pte = pagewalk(proc->vm, (ulong)proc->vm->ustart + i, true);
     if (!pte)
-      panic ("pte");
+      panic("pte");
     trace("copyvas pte %p\n", pte);
 
-    p = zalloc ();
+    p = zalloc();
     if (!p)
-      panic ("p");
+      panic("p");
 
-    pa = PTE_PA (*pte);
-    flags = PTE_FLAGS (*pte);
+    pa = PTE_PA(*pte);
+    flags = PTE_FLAGS(*pte);
 
     trace("copyvas flags %x %x %x\n", *pte, pa, flags);
-    memcpy(p, P2V (pa), PAGESIZE);
-    mappages(vm, (ulong)proc->vm->ustart + i, V2P (p), PAGESIZE, flags, false);
+    memcpy(p, P2V(pa), PAGESIZE);
+    mappages(vm, (ulong)proc->vm->ustart + i, V2P(p), PAGESIZE, flags, false);
   }
   // copy heap
   // copy stack
@@ -144,38 +130,32 @@ copyvm(struct proc *proc, struct proc *np)
   np->vm = vm;
 }
 
-static u64
-alignup(u64 va, int *upsz)
-{
-  if (PAGEALIGNED (va)) {
+static u64 alignup(u64 va, int *upsz) {
+  if (PAGEALIGNED(va)) {
     *upsz = PAGESIZE;
     return va + PAGESIZE;
   } else {
-    *upsz = PAGEALIGN (va) - va;
-    return PAGEALIGN (va);
+    *upsz = PAGEALIGN(va) - va;
+    return PAGEALIGN(va);
   }
 }
 
-void
-copyin(struct vm *vm, u64 uva, void *buf, int size)
-{
+void copyin(struct vm *vm, u64 uva, void *buf, int size) {
   ulong pa;
   void *p;
   u64 euva = uva + size;
   int sz, offset = 0;
 
-  for (u64 v = uva; v < euva; v = alignup (v, &sz)) {
+  for (u64 v = uva; v < euva; v = alignup(v, &sz)) {
     pa = addrwalk(vm, v);
     if (pa == 0)
       return;
-    memcpy(P2V (pa), buf + offset, MIN(sz, euva - v));
-    offset += MIN (sz, euva - v);
+    memcpy(P2V(pa), buf + offset, MIN(sz, euva - v));
+    offset += MIN(sz, euva - v);
   }
 }
 
-void
-vmcodealloc(struct vm *vm, u64 sz, u64 flags)
-{
+void vmcodealloc(struct vm *vm, u64 sz, u64 flags) {
   u64 oldsz, newsz;
   void *page, *from, *to, *p;
 
@@ -184,28 +164,23 @@ vmcodealloc(struct vm *vm, u64 sz, u64 flags)
   from = vm->ustart + oldsz;
   to = vm->ustart + newsz;
 
-  for (p = (void *)PAGEALIGN (from); (ulong)p < (ulong)to; p += PAGESIZE) {
-    page = zalloc ();
+  for (p = (void *)PAGEALIGN(from); (ulong)p < (ulong)to; p += PAGESIZE) {
+    page = zalloc();
     if (!page)
-      panic ("page");
-    mappages(vm, p, V2P (page), PAGESIZE, pnormal () | puser () | flags, false);
+      panic("page");
+    mappages(vm, p, V2P(page), PAGESIZE, pnormal() | puser() | flags, false);
   }
 
   vm->csize = newsz;
 }
 
-
-void
-freevm(struct vm *vm)
-{
+void freevm(struct vm *vm) {
   // TODO
   free(vm->pgdir);
   free(vm);
 }
 
-void *
-devmmap(ulong pa, ulong nbytes)
-{
+void *devmmap(ulong pa, ulong nbytes) {
   void *va;
   ulong flags = pdevice() | pwritable() | pnocache();
 
@@ -217,23 +192,19 @@ devmmap(ulong pa, ulong nbytes)
   return va;
 }
 
-static void
-initkvm(void)
-{
+static void initkvm(void) {
   x86initkvm(&kvm);
   kvm.user = false;
   if (!kvm.pgdir)
-    panic ("NULL pgdir");
+    panic("NULL pgdir");
   if (!PAGEALIGNED(kvm.pgdir))
-    panic ("pgdir must be page-aligned");
+    panic("pgdir must be page-aligned");
   memset(kvm.pgdir, 0, PAGESIZE);
 }
 
-void
-kernelmap(void)
-{
+void kernelmap(void) {
   ulong pstart, pend;
-  void  *va;
+  void *va;
   ulong flags;
 
   initkvm();
@@ -242,7 +213,7 @@ kernelmap(void)
   pend = PAGEALIGNDOWN(memend());
 
   for (ulong addr = pstart; addr < pend; addr += PAGESIZE) {
-    va = P2V (addr);
+    va = P2V(addr);
     flags = pnormal();
     if (IS_KERN_TEXT(va))
       flags |= preadonly() | pexecutable();
@@ -254,5 +225,5 @@ kernelmap(void)
   }
 
   switchvm(&kvm);
-  trace ("Switched to kernel virtual address space\n");
+  trace("Switched to kernel virtual address space\n");
 }
