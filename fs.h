@@ -38,69 +38,69 @@
 
 struct superblock
 {
-        
+  
 };
 
 struct dentry
 {
-        struct fs *fs;
-	struct tree dn;
-        char name[50];
-	struct inode *inode;
+  struct fs *fs;
+  struct tree dn;
+  char name[50];
+  struct inode *inode;
 };
 
 struct inode
 {
-        struct fs *fs;
-        void *priv;
-        struct buf *buf;
+  struct fs *fs;
+  void *priv;
+  struct buf *buf;
 
-	struct list in;
+  struct list in;
 
-        u16     mode;
-        u32     size;
-        u32     atime;
-        u32     ctime;
-        u32     mtime;
-        u32     dtime;
-        u16     links_count;
-        u32     blocks;
-        u32     block[15];
+  u16     mode;
+  u32     size;
+  u32     atime;
+  u32     ctime;
+  u32     mtime;
+  u32     dtime;
+  u16     links_count;
+  u32     blocks;
+  u32     block[15];
 
-        u32     inum;
-        u32     major;
-        u32     minor;
-        u32     refcount;
-        bool    new;
+  u32     inum;
+  u32     major;
+  u32     minor;
+  u32     refcount;
+  bool    new;
 };
 
 struct fs_if
 {
-        char *name;
+  char *name;
 
-	struct list fn;
+  struct list fn;
 
-        int (*probe)(struct fs *fs);
-        struct inode *(*createi)(struct fs *fs, char *name, struct inode *dir, int mode, int dev);
-        struct inode *(*iget)(struct fs *fs, int inum);
-        int (*readi)(struct inode *ino, unsigned char *buf, u64 off, u64 size);
-        int (*writei)(struct inode *ino, unsigned char *buf, u64 off, u64 size);
-        int (*mkdir)(struct fs *fs, char *path);
-        void (*sync)(struct inode *ino);
-        int (*search)(struct inode *dir, char *basename);
-        struct inode *(*rootinode)(struct fs *fs);
-        bool (*fsisme)(unsigned char *sb);
+  int (*probe)(struct fs *fs);
+  struct inode *(*createi)(struct fs *fs, char *name, struct inode *dir, int mode, int dev);
+  struct inode *(*iget)(struct fs *fs, int inum);
+  int (*readi)(struct inode *ino, unsigned char *buf, u64 off, u64 size);
+  int (*writei)(struct inode *ino, unsigned char *buf, u64 off, u64 size);
+  int (*mkdir)(struct fs *fs, char *path);
+  void (*sync)(struct inode *ino);
+  int (*search)(struct inode *dir, char *basename);
+  struct inode *(*rootinode)(struct fs *fs);
+  bool (*fsisme)(unsigned char *sb);
 };
 
 struct fs
 {
-	struct block *dev;
-	struct fs_if *op;
+  struct block *dev;
+  struct fs_if *op;
 
-	struct superblock sb;
+  struct superblock sb;
 
-        void *priv;
-	struct list itable;
+  void *priv;
+  struct list itable;
 };
 
 void initfs(void);

@@ -12,33 +12,33 @@ typedef struct VirtQ          VirtQ;
 
 struct VirtioDeviceOp
 {
-        void    (*notify) (VirtioDevice *dev, int qsel);
-        void    (*setvq) (VirtioDevice *dev, VirtQ *vq);
+  void    (*notify) (VirtioDevice *dev, int qsel);
+  void    (*setvq) (VirtioDevice *dev, VirtQ *vq);
 };
 
 struct VirtioDriver
 {
-        char    name[16];
+  char    name[16];
 
-        uint    *features;
-        uint    nfeatures;
+  uint    *features;
+  uint    nfeatures;
 
-        int     (*probe) (VirtioDevice *vdev);
-        int     (*disconnect) (VirtioDevice *vdev);
+  int     (*probe) (VirtioDevice *vdev);
+  int     (*disconnect) (VirtioDevice *vdev);
 };
 
 struct VirtioDevice
 {
-        // for pci
-        PciDev          *pci;
-        // for mmio
-        void            *iomem;
-        Phys            iomemphys;
+  // for pci
+  PciDev          *pci;
+  // for mmio
+  void            *iomem;
+  Phys            iomemphys;
 
-        VirtioDriver    *driver;
+  VirtioDriver    *driver;
 
-        VirtioDeviceOp  *op;
-        void            *priv;
+  VirtioDeviceOp  *op;
+  void            *priv;
 };
 
 #endif  // _VIRTIO_H

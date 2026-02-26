@@ -8,6 +8,6 @@
 void
 initpic8259a (void)
 {
-	outb (PIC1 + 1, 0xff);
-	outb (PIC2 + 1, 0xff);
+  outb (PIC1 + 1, 0xff);
+  outb (PIC2 + 1, 0xff);
 }

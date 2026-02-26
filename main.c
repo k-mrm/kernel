@@ -17,30 +17,30 @@ void apmain(void) NORETURN;
 void NORETURN
 kernelmain (void)
 {
-        kernelmap();
-        kallocinit();
-        ramdiskinit();
-        dev_probe("irqchip");
-        dev_probe("console");
-        dev_probe("timer");
-        dev_probe("eventtimer");
-        dev_probe("block");
-        dev_probe("irq");
-        initmodule();
-        initfs();
-        initprocess();
-        syscallinit();
-        apmain();
+  kernelmap();
+  kallocinit();
+  ramdiskinit();
+  dev_probe("irqchip");
+  dev_probe("console");
+  dev_probe("timer");
+  dev_probe("eventtimer");
+  dev_probe("block");
+  dev_probe("irq");
+  initmodule();
+  initfs();
+  initprocess();
+  syscallinit();
+  apmain();
 }
 
 void NORETURN
 apmain (void)
 {
-        lsdev ();
+  lsdev ();
 
-        INTR_ENABLE;
+  INTR_ENABLE;
 
-        for (;;)
-                HLT;
-        panic ("kernelmain exits");
+  for (;;)
+    HLT;
+  panic ("kernelmain exits");
 }

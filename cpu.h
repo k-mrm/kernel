@@ -10,12 +10,12 @@ struct proc;
 
 struct cpu
 {
-        uint cpuid;
-        struct proc *current;
-        struct context context;
+  uint cpuid;
+  struct proc *current;
+  struct context context;
 
-	struct tree cn;		// node
-	struct tree devtree;	// head
+  struct tree cn;         // node
+  struct tree devtree;    // head
 };
 
 struct cpu *mycpu(void);

@@ -5,16 +5,16 @@
 
 typedef struct SYSCALL
 {
-        int sysno;
-        void *syscall;
+  int sysno;
+  void *syscall;
 } SYSCALL;
 
 #define SYSCALL_DEFINE(_no, _name)        \
-        static USED SECTION (".data.syscall") ALIGNED (_Alignof (SYSCALL))      \
-        SYSCALL __syscall_ ## _name = {                                         \
-                .sysno = _no,                                                   \
-                .syscall = (void *)_name,                                       \
-        }
+  static USED SECTION (".data.syscall") ALIGNED (_Alignof (SYSCALL))      \
+  SYSCALL __syscall_ ## _name = {                                         \
+    .sysno = _no,                                                   \
+    .syscall = (void *)_name,                                       \
+  }
 
 #define SYS_EMPTY       0
 #define SYS_EXEC        1

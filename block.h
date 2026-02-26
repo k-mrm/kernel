@@ -7,31 +7,31 @@
 
 #define B_VALID         (1)
 #define B_DIRTY         (1 << 1)
-#define BSIZE		1024
+#define BSIZE           1024
 
 struct buf {
-	struct block *dev;
+  struct block *dev;
 
-        int             bno;
-        int             flags;
-        unsigned char   data[BSIZE];
-        uint            refcount;
+  int             bno;
+  int             flags;
+  unsigned char   data[BSIZE];
+  uint            refcount;
 
-	struct list bn;
+  struct list bn;
 };
 
 struct block_if {
-        int (*read)(struct block *dev, struct buf *b);
-        int (*write)(struct block *dev, struct buf *b);
+  int (*read)(struct block *dev, struct buf *b);
+  int (*write)(struct block *dev, struct buf *b);
 };
 
 struct block {
-        struct device dev;
-	struct block_if *ops;
-	struct list cache;
+  struct device dev;
+  struct block_if *ops;
+  struct list cache;
 };
 
-#define dev_block(_d)	container_of(_d, struct block, dev)
+#define dev_block(_d)   container_of(_d, struct block, dev)
 
 int probe_block(struct block *bdev);
 struct buf *bread(struct block *dev, int bno);

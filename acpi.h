@@ -11,45 +11,45 @@ typedef struct Xsdt       Xsdt;
 
 struct Rsdp
 {
-        char  signature[8];
-        u8    checksum;
-        char  oemid[6];
-        u8    revision;
-        u32   rsdtaddress;
+  char  signature[8];
+  u8    checksum;
+  char  oemid[6];
+  u8    revision;
+  u32   rsdtaddress;
 } PACKED;
 
 struct Xsdp
 {
-        Rsdp  v1;
-        u32   length;
-        u64   xsdtaddress;
-        u8    xchecksum;
-        u8    _rsrv[3];
+  Rsdp  v1;
+  u32   length;
+  u64   xsdtaddress;
+  u8    xchecksum;
+  u8    _rsrv[3];
 } PACKED;
 
 struct SdtHeader
 {
-        char  signature[4];
-        u32   length;
-        u8    revision;
-        u8    checksum;
-        char  oemid[6];
-        char  oemtableid[8];
-        u32   oemrevision;
-        u32   creatorid;
-        u32   creatorrevision;
+  char  signature[4];
+  u32   length;
+  u8    revision;
+  u8    checksum;
+  char  oemid[6];
+  char  oemtableid[8];
+  u32   oemrevision;
+  u32   creatorid;
+  u32   creatorrevision;
 } PACKED;
 
 struct Rsdt
 {
-        SdtHeader header;
-        u32       entry[];
+  SdtHeader header;
+  u32       entry[];
 } PACKED;
 
 struct Xsdt
 {
-        SdtHeader header;
-        u64       entry[];
+  SdtHeader header;
+  u64       entry[];
 } PACKED;
 
 /*
@@ -59,7 +59,7 @@ typedef struct Fadt   Fadt;
 
 struct Fadt
 {
-        SdtHeader header;
+  SdtHeader header;
 } PACKED;
 
 /*
@@ -77,45 +77,45 @@ typedef struct Madt             Madt;
 
 struct MadtEntry
 {
-        u8 type;
-        u8 length;
+  u8 type;
+  u8 length;
 };
 
 struct MadtLocalapic
 {
-        MadtEntry header;
+  MadtEntry header;
 
-        u8        procid; // Processor ID
-        u8        apicid; // Local APIC ID
-        u32       flags;
+  u8        procid; // Processor ID
+  u8        apicid; // Local APIC ID
+  u32       flags;
 };
 
 struct MadtIoapic
 {
-        MadtEntry header;
+  MadtEntry header;
 
-        u8        ioapicid;
-        u8        _zero;
-        u32       ioapicaddr;
-        u32       intrbase;
+  u8        ioapicid;
+  u8        _zero;
+  u32       ioapicaddr;
+  u32       intrbase;
 };
 
 struct MadtLocalx2apic
 {
-        MadtEntry header;
+  MadtEntry header;
 
-        u16       _rsrv;
-        u32       x2apicid;
-        u32       flags;
-        u32       acpiid;
+  u16       _rsrv;
+  u32       x2apicid;
+  u32       flags;
+  u32       acpiid;
 };
 
 struct Madt
 {
-        SdtHeader header;
-        u32       lapicaddr;
-        u32       flags;
-        MadtEntry table[];
+  SdtHeader header;
+  u32       lapicaddr;
+  u32       flags;
+  MadtEntry table[];
 } PACKED;
 
 /*
@@ -130,11 +130,11 @@ typedef struct Gas      Gas;
 
 struct Gas
 {
-        u8  space;
-        u8  bitwidth;
-        u8  bitoffset;
-        u8  accesssize;
-        u64 address;
+  u8  space;
+  u8  bitwidth;
+  u8  bitoffset;
+  u8  accesssize;
+  u64 address;
 } PACKED;
 
 /*
@@ -144,12 +144,12 @@ typedef struct HpetAcpi   HpetAcpi;
 
 struct HpetAcpi
 {
-        SdtHeader header;
-        u32       hardwareid;
-        Gas       address;
-        u8        number;
-        u16       mintick;
-        u8        flags;
+  SdtHeader header;
+  u32       hardwareid;
+  Gas       address;
+  u8        number;
+  u16       mintick;
+  u8        flags;
 } PACKED;
 
 void acpiinit (void);

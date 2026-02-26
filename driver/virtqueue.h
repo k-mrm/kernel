@@ -20,56 +20,56 @@ typedef struct VirtQ      VirtQ;
 #define VIRTQ_DESC_F_INDIRECT 4
 struct VQDesc
 {
-        u64   addr;
-        u32   len;
-        u16   flags;
-        u16   next;
+  u64   addr;
+  u32   len;
+  u16   flags;
+  u16   next;
 } PACKED ALIGNED(16);
 
 #define VIRTQ_AVAIL_F_NO_INTERRUPT  1
 struct VQAvail
 {
-        u16   flags;
-        u16   idx;
-        u16   ring[NQUEUE];
+  u16   flags;
+  u16   idx;
+  u16   ring[NQUEUE];
 } PACKED ALIGNED(16);
 
 struct VQUsedElem
 {
-        u32   id;
-        u32   len;
+  u32   id;
+  u32   len;
 } PACKED;
 
 #define VIRTQ_USED_F_NO_NOTIFY  1
 struct VQUsed
 {
-        u16         flags;
-        u16         idx;
-        VQUsedElem  ring[NQUEUE];
+  u16         flags;
+  u16         idx;
+  VQUsedElem  ring[NQUEUE];
 } PACKED ALIGNED(4);
 
 struct VirtQ
 {
-        VirtioDevice  *dev;
+  VirtioDevice  *dev;
 
-        // Lock     lock;
-        VirtQ         *next;
+  // Lock     lock;
+  VirtQ         *next;
 
-        /* vring */
-        VQDesc        *desc;
-        VQAvail       *avail;
-        VQUsed        *used;
-        u16           num;
+  /* vring */
+  VQDesc        *desc;
+  VQAvail       *avail;
+  VQUsed        *used;
+  u16           num;
 
-        u16           freehead;
-        u16           nfree;
-        u16           lastused;
+  u16           freehead;
+  u16           nfree;
+  u16           lastused;
 
-        int           qsel;
+  int           qsel;
 
-        void          *cookie[NQUEUE];
+  void          *cookie[NQUEUE];
 
-        void          (*intrhandler)(struct virtq *);
+  void          (*intrhandler)(struct virtq *);
 };
 
 typedef struct SBuf   SBuf;
@@ -77,8 +77,8 @@ typedef struct SBuf   SBuf;
 // scattered buffer
 struct SBuf
 {
-        void  *buf;
-        u32   len;
+  void  *buf;
+  u32   len;
 };
 
 void vqreg (VirtQ *vq);
@@ -87,18 +87,18 @@ int vqenqueue (VirtQ *vq, SBuf *s, int ns, void *cookie, bool in);
 void *vqdequeue (VirtQ *vq, u32 *len);
 
 VirtQ *newvirtq (VirtioDevice *dev, int qsel,
-                void (*intrhandler) (VirtQ *));
+    void (*intrhandler) (VirtQ *));
 
 static inline int
 vqenqueuein (VirtQ *vq, SBuf *s, int ns, void *cookie)
 {
-        return vqenqueue (vq, s, ns, cookie, true);
+  return vqenqueue (vq, s, ns, cookie, true);
 }
 
 static inline int
 vqenqueueout (VirtQ *vq, SBuf *s, int ns, void *cookie)
 {
-        return vqenqueue (vq, s, ns, cookie, false);
+  return vqenqueue (vq, s, ns, cookie, false);
 }
 
 #endif  // _VIRTQUEUE_H

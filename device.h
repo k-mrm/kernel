@@ -7,37 +7,42 @@ struct device;
 
 struct driver
 {
-	char    *name;
-	char    *description;
+  char    *name;
+  char    *description;
 
-	int     (*probe)(struct device *);
-	void    (*disconnect)(struct device *);
-	int     (*reconnect)(struct device *);
-	void    (*suspend)(struct device *);
-	void    (*resume)(struct device *);
+  int     (*probe)(struct device *);
+  void    (*disconnect)(struct device *);
+  int     (*reconnect)(struct device *);
+  void    (*suspend)(struct device *);
+  void    (*resume)(struct device *);
 
-	char    *param;
+  char    *param;
+};
+
+struct hw_device
+{
+
 };
 
 struct device
 {
-	char *type;
-	char name[40];
+  char *type;
+  char name[40];
 
-	struct list iomem;
+  struct list iomem;
 
-	struct tree node;
+  struct tree node;
 
-	struct irqchip *irqchip;	// nullable
+  struct irqchip *irqchip;        // nullable
 
-	struct driver *driver;
+  struct driver *driver;
 };
 
 struct iomem {
-        volatile void *base;
-        ulong pbase;
-        uint size;
-	struct list n;
+  volatile void *base;
+  ulong pbase;
+  uint size;
+  struct list n;
 };
 
 struct iomem *iomap(struct device *dev, ulong base, uint size);

@@ -42,79 +42,79 @@
 
 #ifndef __ASSEMBLER__
 
-#define PTE_PA(_pte)    	((ulong)(_pte) & PTE_PA_MASK)
+#define PTE_PA(_pte)            ((ulong)(_pte) & PTE_PA_MASK)
 #define PTE_FLAGS(_pte)         ((ulong)(_pte) & ~(PTE_PA_MASK))
 
 static inline PTE
 nexttablepte (Phys ntaddr)
 {
-        return (ntaddr & PTE_PA_MASK) | PTE_P | PTE_W | PTE_U;
+  return (ntaddr & PTE_PA_MASK) | PTE_P | PTE_W | PTE_U;
 }
 
 static inline ulong
 ppresent (void)
 {
-        return PTE_P;
+  return PTE_P;
 }
 
 static inline ulong
 paccess (void)
 {
-        return 0;
+  return 0;
 }
 
 static inline ulong
 preadonly (void)
 {
-        return 0;
+  return 0;
 }
 
 static inline ulong
 pwritable (void)
 {
-        return PTE_W;
+  return PTE_W;
 }
 
 static inline ulong
 puser (void)
 {
-        return PTE_U;
+  return PTE_U;
 }
 
 static inline ulong
 pexecutable (void)
 {
-        return 0;
+  return 0;
 }
 
 static inline ulong
 pnox (void)
 {
-        return PTE_XD;
+  return PTE_XD;
 }
 
 static inline ulong
 pnocache (void)
 {
-        return PTE_PCD;
+  return PTE_PCD;
 }
 
 static inline ulong
 pnormal (void)
 {
-        return 0;
+  return 0;
 }
 
 static inline ulong
 pdevice (void)
 {
-        return 0;
+  return 0;
 }
 
 static inline PTE
 pteleaf (Phys pa, ulong archflags)
 {
-        return (pa & PTE_PA_MASK) | archflags | PTE_P;
+  return (pa & PTE_PA_MASK) | archflags | PTE_P;
 }
 
 extern char __kstart[], __kend[];
@@ -125,14 +125,14 @@ extern char __kinit[], __kinit_e[];
 static inline Phys
 V2P (void *p)
 {
-        ulong va = (ulong)p;
-        return va - PAGE_OFFSET;
+  ulong va = (ulong)p;
+  return va - PAGE_OFFSET;
 }
 
 static inline void *
 P2V (Phys pa)
 {
-        return (void*)(pa + PAGE_OFFSET);
+  return (void*)(pa + PAGE_OFFSET);
 }
 
 #define IS_KERN_TEXT(_va)     ((ulong)__ktext <= (ulong)(_va) && (ulong)(_va) < (ulong)__ktext_e)

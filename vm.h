@@ -3,34 +3,34 @@
 
 #include <kernel.h>
 
-#define ALIGN(_p, align)	(((ulong)(_p) + (align)-1) & ~((align)-1))
-#define ALIGNDOWN(_p, align)	((ulong)(_p) & ~((align)-1))
-#define PAGEALIGNED(_p)		(((ulong)(_p) & (PAGESIZE-1)) == 0)
-#define PAGEALIGN(_p)		ALIGN ((_p), PAGESIZE)
-#define PAGEALIGNDOWN(_p)	ALIGNDOWN ((_p), PAGESIZE)
-#define PAGEOFFSET(_p)		((ulong)(_p) & (PAGESIZE-1))
+#define ALIGN(_p, align)        (((ulong)(_p) + (align)-1) & ~((align)-1))
+#define ALIGNDOWN(_p, align)    ((ulong)(_p) & ~((align)-1))
+#define PAGEALIGNED(_p)         (((ulong)(_p) & (PAGESIZE-1)) == 0)
+#define PAGEALIGN(_p)           ALIGN ((_p), PAGESIZE)
+#define PAGEALIGNDOWN(_p)       ALIGNDOWN ((_p), PAGESIZE)
+#define PAGEOFFSET(_p)          ((ulong)(_p) & (PAGESIZE-1))
 
 struct vma {
-	struct tree vn;
+  struct tree vn;
 
-	ulong start;
-	ulong end;
-	ulong flags;	
+  ulong start;
+  ulong end;
+  ulong flags;    
 };
 
 struct vm {
-	PageTable pgdir;
-	uint level;
-	uint lowestlevel;
-	bool user;
-	struct proc *proc;
-	void *ustack;
-	u64 ustacksize;
-	void *ustart;
-	u64 csize;
-	void *heap;
-	u64 hsize;
-	struct tree vma;
+  PageTable pgdir;
+  uint level;
+  uint lowestlevel;
+  bool user;
+  struct proc *proc;
+  void *ustack;
+  u64 ustacksize;
+  void *ustart;
+  u64 csize;
+  void *heap;
+  u64 hsize;
+  struct tree vma;
 };
 
 void kernelmap(void);

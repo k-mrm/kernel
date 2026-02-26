@@ -53,118 +53,118 @@
 static inline void
 outb (u16 port, u8 data)
 {
-        asm volatile ("outb %0, %1" :: "a"(data), "d"(port));
+  asm volatile ("outb %0, %1" :: "a"(data), "d"(port));
 }
 
 static inline void
 outw (u16 port, u16 data)
 {
-        asm volatile ("outw %0, %1" :: "a"(data), "d"(port));
+  asm volatile ("outw %0, %1" :: "a"(data), "d"(port));
 }
 
 static inline void
 outl (u16 port, u32 data)
 {
-        asm volatile ("outl %0, %1" :: "a"(data), "d"(port));
+  asm volatile ("outl %0, %1" :: "a"(data), "d"(port));
 }
 
 static inline u8
 inb (u16 port)
 {
-        u8 data;
-        asm volatile ("inb %1, %0" : "=a"(data) : "d"(port));
-        return data;
+  u8 data;
+  asm volatile ("inb %1, %0" : "=a"(data) : "d"(port));
+  return data;
 }
 
 static inline u16
 inw (u16 port)
 {
-        u16 data;
-        asm volatile ("inw %1, %0" : "=a"(data) : "d"(port));
-        return data;
+  u16 data;
+  asm volatile ("inw %1, %0" : "=a"(data) : "d"(port));
+  return data;
 }
 
 static inline u32
 inl (u16 port)
 {
-        u32 data;
-        asm volatile ("inl %1, %0" : "=a"(data) : "d"(port));
-        return data;
+  u32 data;
+  asm volatile ("inl %1, %0" : "=a"(data) : "d"(port));
+  return data;
 }
 
 static inline ulong
 cr2 (void)
 {
-        ulong r;
-        asm volatile ("movq %%cr2, %0" : "=r"(r));
-        return r;
+  ulong r;
+  asm volatile ("movq %%cr2, %0" : "=r"(r));
+  return r;
 }
 
 static inline void
 cpuid (u32 ax, u32 *a, u32 *b, u32 *c, u32 *d)
 {
-        asm volatile ("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "a"(ax));
+  asm volatile ("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "a"(ax));
 }
 
 static inline void
 __rdmsr (u32 reg, u32 *a, u32 *d)
 {
-        asm volatile ("rdmsr" : "=a"(*a), "=d"(*d) : "c"(reg));
+  asm volatile ("rdmsr" : "=a"(*a), "=d"(*d) : "c"(reg));
 }
 
 static inline u32
 rdmsr32 (u32 reg)
 {
-        u32 a, d;
-        __rdmsr (reg, &a, &d);
-        return a;
+  u32 a, d;
+  __rdmsr (reg, &a, &d);
+  return a;
 }
 
 static inline u64
 rdmsr64 (u32 reg)
 {
-        u32 a, d;
-        __rdmsr (reg, &a, &d);
-        return (u64)a | ((u64)d << 32);
+  u32 a, d;
+  __rdmsr (reg, &a, &d);
+  return (u64)a | ((u64)d << 32);
 }
 
 static inline void
 __wrmsr (u32 reg, u32 a, u32 d)
 {
-        asm volatile ("wrmsr" :: "c"(reg), "a"(a), "d"(d));
+  asm volatile ("wrmsr" :: "c"(reg), "a"(a), "d"(d));
 }
 
 static inline void
 wrmsr32 (u32 reg, u32 val)
 {
-        __wrmsr (reg, val, 0);
+  __wrmsr (reg, val, 0);
 }
 
 static inline void
 wrmsr64 (u32 reg, u64 val)
 {
-        u32 a, d;
-        a = (u32)val;
-        d = (u32)(val >> 32);
-        __wrmsr (reg, a, d);
+  u32 a, d;
+  a = (u32)val;
+  d = (u32)(val >> 32);
+  __wrmsr (reg, a, d);
 }
 
 static inline bool
 interruptible (void)
 {
-        u64 rflags;
-        asm volatile (
-                "pushfq\n"
-                "pop  %0\n" : "=r" (rflags)
-        );
+  u64 rflags;
+  asm volatile (
+    "pushfq\n"
+    "pop  %0\n" : "=r" (rflags)
+  );
 
-        return rflags & EFLAGS_IF;
+  return rflags & EFLAGS_IF;
 }
 
 static inline void
 ltr (ushort sel)
 {
-        asm volatile ("ltr %0" :: "r" (sel));
+  asm volatile ("ltr %0" :: "r" (sel));
 }
 
 #define INTR_DISABLE    asm volatile ("cli");

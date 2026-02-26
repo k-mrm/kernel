@@ -17,28 +17,28 @@ extern PTE __boot_pdpt[];
 void
 switchvm(struct vm *vm)
 {
-        ulong pgtpa;
+  ulong pgtpa;
 
-        if (!vm)
-                panic("null vas");
+  if (!vm)
+    panic("null vas");
 
-        pgtpa = V2P(vm->pgdir);
-        if (vm->user)
-                tss.rsp0 = (ulong)vm->proc->kstack + PAGESIZE;
+  pgtpa = V2P(vm->pgdir);
+  if (vm->user)
+    tss.rsp0 = (ulong)vm->proc->kstack + PAGESIZE;
 
-        asm volatile ("mov %0, %%cr3" :: "r"(pgtpa));
+  asm volatile ("mov %0, %%cr3" :: "r"(pgtpa));
 }
 
 void
 x86initkvm(struct vm *kvm)
 {
-        kvm->pgdir       = kpml4;
-        kvm->level       = 4;
-        kvm->lowestlevel = 1;
+  kvm->pgdir       = kpml4;
+  kvm->level       = 4;
+  kvm->lowestlevel = 1;
 }
 
 void
 killbootmap (void)
 {
-        __boot_pml4[PIDX (4, KERNLINK_PA)] = 0;
+  __boot_pml4[PIDX (4, KERNLINK_PA)] = 0;
 }

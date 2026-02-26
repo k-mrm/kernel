@@ -10,49 +10,49 @@
 
 enum procstate
 {
-        NONE,
-        READY,
-        RUNNING,
-        BLOCKING,
-        ZOMBIE,
+  NONE,
+  READY,
+  RUNNING,
+  BLOCKING,
+  ZOMBIE,
 };
 
 struct chan
 {
-	struct proc *proc;
+  struct proc *proc;
 };
 
 struct proc
 {
-        enum procstate state;
-        char pname[32];
+  enum procstate state;
+  char pname[32];
 
-        struct vm *vm;    // address space
-        uint procid;
-        struct cpu *cpu;
-        struct trapframe *tf;
-        struct context context;
-        void *kstack;
-        void *ksp;
+  struct vm *vm;    // address space
+  uint procid;
+  struct cpu *cpu;
+  struct trapframe *tf;
+  struct context context;
+  void *kstack;
+  void *ksp;
 
-        struct inode *cwd;
-	
-	struct tree pn;
+  struct inode *cwd;
+  
+  struct tree pn;
 
-	struct list waitq;
+  struct list waitq;
 
-	struct list rq;
-	struct list free;
-	struct list wqn;
+  struct list rq;
+  struct list free;
+  struct list wqn;
 
-	struct chan chan;
+  struct chan chan;
 
-        int exitstatus;
+  int exitstatus;
 
-        bool user;
-        // for kernel process
-        int (*func)(void *arg);
-        void *arg;
+  bool user;
+  // for kernel process
+  int (*func)(void *arg);
+  void *arg;
 };
 
 void init_process(void);

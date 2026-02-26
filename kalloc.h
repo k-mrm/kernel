@@ -10,16 +10,16 @@ typedef struct PageBlock  PageBlock;
 
 struct Page
 {
-        Page *next;
-        u8   blockno;
+  Page *next;
+  u8   blockno;
 };
 
 struct PageBlock
 {
-        Page  *pages;
-        Phys  base;
-        ulong npages;
-        uint  node;     // NUMA Node
+  Page  *pages;
+  Phys  base;
+  ulong npages;
+  uint  node;     // NUMA Node
 };
 
 extern PageBlock proot[32];
@@ -32,42 +32,42 @@ extern uint nproot;
 static inline PageBlock *
 pa2block (Phys pa)
 {
-        PageBlock *b;
-        ulong size;
+  PageBlock *b;
+  ulong size;
 
-        FOREACH_PAGEBLOCK (b)
-        {
-                size = b->npages << PAGESHIFT;
-                if (b->base <= pa && pa < b->base + size)
-                        return b;
-        }
-        return NULL;
+  FOREACH_PAGEBLOCK (b)
+  {
+    size = b->npages << PAGESHIFT;
+    if (b->base <= pa && pa < b->base + size)
+      return b;
+  }
+  return NULL;
 }
 
 static inline Page *
 pa2page (Phys pa)
 {
-        PageBlock *block = pa2block (pa);
-        return block->pages + ((pa - block->base) >> PAGESHIFT);
+  PageBlock *block = pa2block (pa);
+  return block->pages + ((pa - block->base) >> PAGESHIFT);
 }
 
 static inline Phys
 page2pa (Page *page)
 {
-        PageBlock *block = &proot[page->blockno];
-        return block->base + ((page - block->pages) << PAGESHIFT);
+  PageBlock *block = &proot[page->blockno];
+  return block->base + ((page - block->pages) << PAGESHIFT);
 }
 
 static inline Page *
 va2page (void *va)
 {
-        return pa2page (V2P (va));
+  return pa2page (V2P (va));
 }
 
 static inline void *
 page2va (Page *page)
 {
-        return (void *)P2V (page2pa (page));
+  return (void *)P2V (page2pa (page));
 }
 
 Page *allocpages (uint order);

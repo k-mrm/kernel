@@ -3,20 +3,20 @@
 void
 cat(int fd)
 {
-	char c;
+  char c;
 
-	while (read(fd, &c, 1) != 0)
-		write(1, &c, 1);
+  while (read(fd, &c, 1) != 0)
+    write(1, &c, 1);
 }
 
 void
 main(int argc, char **argv)
 {
-	if (argc == 1) {
-		cat(0);
-	} else {
-		// TODO
-	}
+  if (argc == 1) {
+    cat(0);
+  } else {
+    // TODO
+  }
 
-	exit(0);
+  exit(0);
 }

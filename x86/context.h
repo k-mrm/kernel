@@ -4,17 +4,17 @@
 #include <kernel.h>
 
 struct stackframe {
-	u64   r15;
-	u64   r14;
-	u64   r13;
-	u64   r12;
-	u64   rbx;
-	u64   rbp;
-	u64   rip;
+  u64   r15;
+  u64   r14;
+  u64   r13;
+  u64   r12;
+  u64   rbx;
+  u64   rbp;
+  u64   rip;
 } PACKED;
 
 struct context {
-	u64   rsp;    // must be fast!
+  u64   rsp;    // must be fast!
 };
 
 void forkret (void);

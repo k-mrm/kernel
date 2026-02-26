@@ -8,37 +8,37 @@ struct irq;
 
 struct irqchip
 {
-	struct irqchip *parent;
+  struct irqchip *parent;
 
-	struct device dev;
+  struct device dev;
 
-	struct irq *(*new_irq)(struct irqchip *ic, struct device *dev, int irqno, int (*handler)(struct irq *));
-	int (*alloc)(struct irqchip *ic);
+  struct irq *(*new_irq)(struct irqchip *ic, struct device *dev, int irqno, int (*handler)(struct irq *));
+  int (*alloc)(struct irqchip *ic);
 
-        void (*eoi)(struct irq *irq);
-        int (*ack)(struct irq *irq);
-	int (*enable_irq)(struct irq *irq);
-	int (*disable_irq)(struct irq *irq);
+  void (*eoi)(struct irq *irq);
+  int (*ack)(struct irq *irq);
+  int (*enable_irq)(struct irq *irq);
+  int (*disable_irq)(struct irq *irq);
 };
 
-#define dev_irqchip(_d)		container_of((_d), struct irqchip, dev)
+#define dev_irqchip(_d)         container_of((_d), struct irqchip, dev)
 
 struct irq
 {
-        int irqno;
-        struct device device;
-	struct irqchip *chip;
+  int irqno;
+  struct device device;
+  struct irqchip *chip;
 
-	struct device *dev;
+  struct device *dev;
 
-	struct list in;
+  struct list in;
 
-	void *priv;
+  void *priv;
 
-        int (*handler)(struct irq *);
+  int (*handler)(struct irq *);
 };
 
-#define dev_irq(_d)	container_of((_d), struct irq, device)
+#define dev_irq(_d)     container_of((_d), struct irq, device)
 
 struct irq *newirq(struct device *dev, struct irqchip *ic, int irqno, int (*handler)(struct irq *), void *priv);
 int enable_irq(struct irq *irq);

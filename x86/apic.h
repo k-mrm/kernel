@@ -9,25 +9,25 @@
 struct apic;
 
 struct apic_if {
-	int   (*probe)(struct device *dev, struct apic *apic);
-	u32   (*read)(struct apic *apic, u32 reg);
-	void  (*write)(struct apic *apic, u32 reg, u32 val);
-	void  (*sendipi)(struct apic *apic, int id);
+  int   (*probe)(struct device *dev, struct apic *apic);
+  u32   (*read)(struct apic *apic, u32 reg);
+  void  (*write)(struct apic *apic, u32 reg, u32 val);
+  void  (*sendipi)(struct apic *apic, int id);
 };
 
 struct apic {
-	int id;
+  int id;
 
-	uint freq;
-	uint periodms;
+  uint freq;
+  uint periodms;
 
-	struct eventtimer timer;
+  struct eventtimer timer;
 
-	struct apic_if *ops;
+  struct apic_if *ops;
 };
 
 struct apic_hw {
-	;
+  ;
 };
 
 extern struct irqchip lapic_chip;

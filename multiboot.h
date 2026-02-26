@@ -11,33 +11,33 @@ typedef struct MultiBoot1Info   MultiBoot1Info;
 // MultiBoot1
 struct MultiBoot1Info
 {
-        u32 flags;            // offset 0
-        u32 memlower;         // offset 4
-        u32 memupper;         // offset 8
-        u32 bootdevice;       // offset 12
-        u32 cmdline;          // offset 16
-        u32 modscount;        // offset 20
-        u32 modsaddr;         // offset 24
-        u32 syms[4];          // offset 28-40
-        u32 mmaplen;          // offset 44
-        u32 mmapaddr;         // offset 48
-        u32 driveslen;        // offset 52
-        u32 drivesaddr;       // offset 56
-        u32 configtable;      // offset 60
-        u32 bootloadername;   // offset 64
-        u32 apmtable;         // offset 68
-        u32 vbecontrolinfo;   // offset 72
-        u32 vbemodeinfo;      // offset 76
-        u16 vbemode;          // offset 80
-        u16 vbeinterfaceseg;  // offset 82
-        u16 vbeinterfaceoff;  // offset 84
-        u16 vbeinterfacelen;  // offset 86
+  u32 flags;            // offset 0
+  u32 memlower;         // offset 4
+  u32 memupper;         // offset 8
+  u32 bootdevice;       // offset 12
+  u32 cmdline;          // offset 16
+  u32 modscount;        // offset 20
+  u32 modsaddr;         // offset 24
+  u32 syms[4];          // offset 28-40
+  u32 mmaplen;          // offset 44
+  u32 mmapaddr;         // offset 48
+  u32 driveslen;        // offset 52
+  u32 drivesaddr;       // offset 56
+  u32 configtable;      // offset 60
+  u32 bootloadername;   // offset 64
+  u32 apmtable;         // offset 68
+  u32 vbecontrolinfo;   // offset 72
+  u32 vbemodeinfo;      // offset 76
+  u16 vbemode;          // offset 80
+  u16 vbeinterfaceseg;  // offset 82
+  u16 vbeinterfaceoff;  // offset 84
+  u16 vbeinterfacelen;  // offset 86
 } PACKED;
 
 struct MultiBootInfo
 {
-        u32 totalsize;
-        u32 _rsvd;
+  u32 totalsize;
+  u32 _rsvd;
 } PACKED;
 
 #define MULTIBOOT_TAG_ALIGN                  8
@@ -74,61 +74,61 @@ typedef struct MultiBootTagAcpiNew    MultiBootTagAcpiNew;
 
 struct MultiBootTag
 {
-        u16 type;
-        u16 flags;
-        u32 size;
+  u16 type;
+  u16 flags;
+  u32 size;
 } PACKED;
 
 struct MultiBootTagString
 {
-        u32     type;
-        u32     size;
-        char    string[0];
+  u32     type;
+  u32     size;
+  char    string[0];
 } PACKED;
 
 struct MultiBootTagBootdev
 {
-        u32 type;
-        u32 size;
-        u32 biosdev;
-        u32 slice;
-        u32 part;
+  u32 type;
+  u32 size;
+  u32 biosdev;
+  u32 slice;
+  u32 part;
 } PACKED;
 
 struct MultiBootMmapEntry
 {
-        u64 addr;
-        u64 len;
+  u64 addr;
+  u64 len;
 #define MULTIBOOT_MEMORY_AVAILABLE              1
 #define MULTIBOOT_MEMORY_RESERVED               2
 #define MULTIBOOT_MEMORY_ACPI_RECLAIMABLE       3
 #define MULTIBOOT_MEMORY_NVS                    4
 #define MULTIBOOT_MEMORY_BADRAM                 5
-        u32 type;
-        u32 zero;
+  u32 type;
+  u32 zero;
 } PACKED;
 
 struct MultiBootTagMmap
 {
-        u32                type;
-        u32                size;
-        u32                entrysize;
-        u32                entryversion;
-        MultiBootMmapEntry entries[0];
+  u32                type;
+  u32                size;
+  u32                entrysize;
+  u32                entryversion;
+  MultiBootMmapEntry entries[0];
 } PACKED;
 
 struct MultiBootTagAcpiOld
 {
-        u32     type;
-        u32     size;
-        u8      rsdp;
+  u32     type;
+  u32     size;
+  u8      rsdp;
 } PACKED;
 
 struct MultiBootTagAcpiNew
 {
-        u32     type;
-        u32     size;
-        u8      xsdp;
+  u32     type;
+  u32     size;
+  u8      xsdp;
 } PACKED;
 
 void mb2parsebootinfo (MultiBootInfo *mb);
