@@ -185,11 +185,9 @@ static int exec(const char *path, const char **argv) {
   ulong args[9];
 
   memset(args, 0, sizeof(ulong) * 9);
-
   elf = path2ino(path);
   if (!elf)
     goto err;
-
   fs = elf->fs;
   status = fs->op->readi(elf, (uchar *)&ehdr, 0, sizeof ehdr);
   if (status != sizeof(ehdr))
@@ -209,15 +207,11 @@ static int exec(const char *path, const char **argv) {
       goto err;
     if (phdr.p_type != PT_LOAD)
       continue;
-
     if (!PAGEALIGNED(phdr.p_vaddr))
       panic("o");
-
     flags |= phdr.p_flags & PF_X ? pexecutable() | preadonly() : 0;
     flags |= phdr.p_flags & PF_W ? pwritable() : 0;
-
     vmcodealloc(vm, phdr.p_memsz, flags);
-
     size = fs->op->readi(elf, p, phdr.p_offset, phdr.p_filesz);
     copyin(vm, phdr.p_vaddr, p, size);
   }
@@ -228,7 +222,6 @@ static int exec(const char *path, const char **argv) {
     sp = (void *)((u64)sp & ~0xf);
     if (sp < vm->ustack)
       goto err;
-
     memcpy(sp, argv[uargc], strlen(argv[uargc]));
     args[uargc] = USTACKTOP - (top - sp);
   }
@@ -251,10 +244,8 @@ static int exec(const char *path, const char **argv) {
 
   freevm(oldvm);
   switchvm(proc->vm);
-
   return 0;
 err:
-  panic("err");
   freevm(vm);
   return -1;
 }

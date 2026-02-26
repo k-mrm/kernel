@@ -3,7 +3,7 @@
 void cat(int fd) {
   char c;
 
-  while (read(fd, &c, 1) != 0)
+  while (read(fd, &c, 1) == 1)
     write(1, &c, 1);
 }
 

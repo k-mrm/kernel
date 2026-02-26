@@ -7,7 +7,7 @@ int main(void) {
   for (;;) {
     pid = fork();
     if (pid == 0) {
-      exec("cat", args);
+      exec("sh", args);
       write(1, "failed\n", 7);
     }
 

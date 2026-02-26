@@ -73,7 +73,6 @@ static bool com_in(struct com *com) { return inb(com->port + LSR) & 0x1; }
 
 static void computc(struct console *cs, char c) {
   struct com *com = container_of(cs, struct com, cs);
-
   if (c == '\n')
     comsend(com, '\r');
   comsend(com, c);
@@ -82,13 +81,11 @@ static void computc(struct console *cs, char c) {
 static int comwrite(struct console *cs, const char *buf, uint n) {
   for (uint i = 0; i < n && buf[i]; i++)
     computc(cs, buf[i]);
-
   return n;
 }
 
 static int comread(struct console *cs) {
   struct com *com = container_of(cs, struct com, cs);
-
   if (com_in(com))
     return comgetc(com);
   else
@@ -97,14 +94,14 @@ static int comread(struct console *cs) {
 
 static int comirq(struct console *cs, struct irq *irq) {
   struct com *com = container_of(cs, struct com, cs);
-
   return 0;
 }
 
 static struct console_if cons = {
-    .write = comwrite,
-    .read = comread,
-    .csirq = comirq,
+  .write = comwrite,
+  .putc = computc,
+  .read = comread,
+  .csirq = comirq,
 };
 
 static int com_probe(struct device *dev) {
@@ -124,12 +121,12 @@ static int com_probe(struct device *dev) {
 }
 
 static struct driver com_drv = {
-    .name = "COM port",
-    .description = "COM port Driver",
-    .probe = com_probe,
-    .suspend = NULL,
-    .resume = NULL,
-    .param = "disable",
+  .name = "COM port",
+  .description = "COM port Driver",
+  .probe = com_probe,
+  .suspend = NULL,
+  .resume = NULL,
+  .param = "disable",
 };
 
 void serialportinit(void) {

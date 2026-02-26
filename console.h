@@ -10,6 +10,7 @@ struct console;
 
 struct console_if {
   int (*write)(struct console *cs, const char *buf, uint n);
+  void (*putc)(struct console *cs, char c);
   int (*read)(struct console *cs);
   int (*csirq)(struct console *cs, struct irq *irq);
 };

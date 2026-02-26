@@ -44,7 +44,7 @@ objs-1 += fs/ext2.o
 # userobject
 root = rootfs/
 ulib-1 += usr/syscalls.o
-uprgs += init echo cat
+uprgs += init echo cat sh
 uprgs := $(addprefix $(root),$(uprgs))
 
 QEMUOPTS = -smp $(NCPU) -m $(MEMSZ) -no-reboot

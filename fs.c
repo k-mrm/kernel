@@ -196,8 +196,10 @@ void fsdbg(void) {
 // stub
 static int write(int fd, const char *USER buf, unsigned long size) {
   int n = 0;
-  if (fd == 1)
-    n = printk("%s", buf);
+  if (fd == 1) {
+    for (n = 0; n < size; n++)
+      printk("%c", buf[n]);
+  }
   return n;
 }
 
