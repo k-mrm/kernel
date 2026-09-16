@@ -5,7 +5,7 @@ OBJCOPY = $(PREFIX)objcopy
 
 CFLAGS = -Wall -Og -g -MD -ffreestanding -nostdinc -nostdlib -nostartfiles
 CFLAGS += -I.
-LDFLAGS =
+LDFLAGS = -g -nostdlib -static --no-relax
 
 QEMUPREFIX =
 QEMU = $(QEMUPREFIX)qemu-system-x86_64
@@ -15,10 +15,11 @@ NCPU = 1
 endif
 
 ifndef MEMSZ
-MEMSZ = 1024
+MEMSZ = 512
 endif
 
-OBJS = entry.o main.o proc.o seg.o serial.o swtch.o trap.o traphandler.o
+OBJS = entry.o main.o proc.o seg.o serial.o swtch.o trap.o traphandler.o printk.o
+OBJS += page.o
 
 all: kernel.img
 

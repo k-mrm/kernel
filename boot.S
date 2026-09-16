@@ -35,6 +35,8 @@ loadboot:
   cmpl  $512, %ebx  // LBA <= 512
   jbe   loadboot
   
+  movw  $0x2000, %ax
+  movw  %ax, %es
   ljmp  $0x2000, $0x0000
 
   // DL: drive

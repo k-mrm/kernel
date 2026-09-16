@@ -185,11 +185,6 @@
 
 #define PIDX(_level, _addr) (((_addr) >> (12 + ((_level) - 1) * 9)) & 0x1ff)
 
-#define PAGESIZE 0x1000
-#define PAGESHIFT 12
-
-#define PTE_PA_MASK	ULL(0xfffffffff000)
-
 // Direct mapping offset: 0xffff800000000000 - 0xffffc00000000000
 
 #define KLINK_OFFSET    ULL(0xffff800000000000)
