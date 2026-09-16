@@ -1,65 +1,29 @@
 #ifndef _PROC_H
 #define _PROC_H
 
-#include <cpu.h>
-#include <fs.h>
 #include <kernel.h>
-#include <vm.h>
-#include <x86/context.h>
-#include <x86/trap.h>
 
 enum procstate {
-  NONE,
-  READY,
   RUNNING,
-  BLOCKING,
+  READY,
+  BLOCKED,
   ZOMBIE,
 };
 
-struct chan {
-  struct proc *proc;
+struct context {
+  u64 rsp;
 };
+
+struct stackframe {
+  u64 r15, r14, r13, r12, rbx, rbp, rip;
+} PACKED;
 
 struct proc {
-  enum procstate state;
-  char pname[32];
-
-  struct vm *vm; // address space
-  uint procid;
-  struct cpu *cpu;
-  struct trapframe *tf;
-  struct context context;
-  void *kstack;
-  void *ksp;
-
-  struct inode *cwd;
-
-  struct tree pn;
-
-  struct list waitq;
-
-  struct list rq;
-  struct list free;
-  struct list wqn;
-
-  struct chan chan;
-
-  int exitstatus;
-
-  bool user;
-  // for kernel process
-  int (*func)(void *arg);
-  void *arg;
+  int pid;
+  procstate state;
+  char name[16];
+  void *stack;
+  int prio;
 };
 
-void init_process(void);
-int idleprocess(void *a);
-int spawn(char *pname, struct proc *parent, int (*proc)(void *arg), void *arg);
-int killpid(uint pid);
-int kill(char *pname);
-void schedule(void);
-int exit(int status);
-void sleep(struct chan *chan, int (*cb)(void *), void *arg);
-void wakeup(struct chan *chan);
-
-#endif // _PROC_H
+#endif
