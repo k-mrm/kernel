@@ -1,6 +1,9 @@
 #include <kernel.h>
 #include <asm.h>
 #include <sys.h>
+#include <irq.h>
+
+static irq irqa[NR_INTERRUPT] = {0};
 
 gatedesc idt[NR_INTERRUPT];
 extern ulong allvectors[];
@@ -199,25 +202,64 @@ trapinit(void)
   loadidt(idt, sizeof idt);
 }
 
-void
+static void
 pagefault (trapframe *tf)
 {
-  ;
+  panic("pf %p", rdcr2());
+}
+
+static void
+gpfault(trapframe *tf)
+{
+  panic("gp");
 }
 
 void
-trap (trapframe *tf)
+newirq(int irqno, void (*eoi)(irq*), int (*handle)(irq*))
 {
+  irq *i;
+  if (irqno >= NR_INTERRUPT)
+    return;
+  i = &irqa[irqno];
+  i->irqno = irqno;
+  i->eoi = eoi;
+  i->handle = handle;
+}
+
+static int
+irqhandle(trapframe *tf)
+{
+  irq *intr;
+  if (tf->trapno >= NR_INTERRUPT)
+    panic("irqno!?");
+  intr = &irqa[tf->trapno];
+  if (!intr->eoi)
+    return -1;
+  intr->eoi(intr);
+  if (intr->handle)
+    return intr->handle(intr);
+  else
+    return 0;
+}
+
+void
+trap(trapframe *tf)
+{
+  int err = 0;
   switch (tf->trapno) {
     case E_PF:
       pagefault (tf);
       break;
     case E_GP:
+      gpfault(tf);
       break;
     case 0x80:
       // syscall (tf);
       break;
     default:
+      err = irqhandle(tf);
+      if (err < 0)
+        panic("irq %d", tf->trapno);
       break;
   }
 }

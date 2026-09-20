@@ -22,7 +22,7 @@ struct page {
 #define PAGEALIGNDOWN(_p)	ALIGNDOWN((_p), PAGESIZE)
 #define PAGEOFFSET(_p)		((ulong)(_p) & (PAGESIZE-1))
 
-void *
+static inline void *
 pageaddress(page *p)
 {
   int pageno = p - p->block;

@@ -4,13 +4,6 @@
 #include <page.h>
 #include <memlayout.h>
 
-struct e820_entry {
-  u64 base, len;
-  u32 type;
-} PACKED; 
-extern e820_entry e820[];
-extern u16 e820count;
-
 struct {
   // spinlock lock;
   page *freelist;
@@ -27,19 +20,23 @@ kmem_npages(void)
 }
 
 page *
-kalloc()
+kalloc(void)
 {
   page *p;
   p = kmem.freelist;
-  if (p)
+  if (p) {
     kmem.freelist = p->next;
-  p->ref = 1;
+    p->ref = 1;
+    memset(p, PAGESIZE, 0);
+  }
   return p;
 }
 
 void
 kfree(page *p)
 {
+  if (!p)
+    return;
   if (!p->ref)
     return;
   p->ref--;

@@ -86,3 +86,17 @@ printk(const char *fmt, ...)
   va_end(ap);
   return n;
 }
+
+void NORETURN
+panic(const char *fmt, ...)
+{
+  va_list ap;
+  asm volatile ("cli");
+  printk("panic: ");
+  va_start(ap, fmt);
+  __printk(fmt, ap, serial_putc);
+  va_end(ap);
+  printk("\n");
+  for (;;)
+    ;
+}

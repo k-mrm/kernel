@@ -17,6 +17,9 @@ bspmain(void)
   seginit();
   trapinit();
   pageinit1((ulong)va(1024*1024*1024));  // 1GiB
+  kernelmap();
+  lapicinit();
+  asm volatile ("sti");
   for (;;)
     hlt();
 }

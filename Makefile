@@ -19,7 +19,7 @@ MEMSZ = 512
 endif
 
 OBJS = entry.o main.o proc.o seg.o serial.o swtch.o trap.o traphandler.o printk.o
-OBJS += page.o
+OBJS += page.o vm.o lib.o lapic.o
 
 all: kernel.img
 
