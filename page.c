@@ -3,37 +3,37 @@
 #include <sys.h>
 #include <page.h>
 #include <memlayout.h>
+#include <list.h>
 
 struct {
   // spinlock lock;
-  page *freelist;
+  list freelist;
 } kmem;
+
+pageblock pblock[32];
+int nr_pblock = 0;
 
 static int
 kmem_npages(void)
 {
-  page *p;
-  uint n = 0;
-  for (p = kmem.freelist; p != NULL; p = p->next)
-    n++;
-  return n;
+  return llen(&kmem.freelist);
 }
 
 page *
-kalloc(void)
+allocpage(void)
 {
-  page *p;
-  p = kmem.freelist;
-  if (p) {
-    kmem.freelist = p->next;
+  page *p = NULL;
+  if (!lempty(&kmem.freelist)) {
+    p = LIST_TOP(&kmem.freelist, page, e);
+    ldelete(&p->e);
     p->ref = 1;
-    memset(p, PAGESIZE, 0);
+    memset(pageaddress(p), PAGESIZE, 0);
   }
   return p;
 }
 
 void
-kfree(page *p)
+freepage(page *p)
 {
   if (!p)
     return;
@@ -41,8 +41,7 @@ kfree(page *p)
     return;
   p->ref--;
   if (!p->ref) {
-    p->next = kmem.freelist;
-    kmem.freelist = p;
+    lappend(&kmem.freelist, &p->e);
   }
 }
 
@@ -50,12 +49,20 @@ static void
 initblock(page *block, ulong base, ulong end)
 {
   page *p;
+  pageblock *pb;
   printk("initblock %p-%p\n", base, end);
+  if (nr_pblock < 32) {
+    pb = &pblock[nr_pblock++];
+    pb->block = block;
+    pb->base = base;
+    pb->end = end;
+  } else
+    panic("nr_pblock >= 32");
   for (ulong c = base; c + PAGESIZE <= end; c += PAGESIZE) {
     p = block + ((c - (ulong)block) >> PAGESHIFT);
     p->block = block;
     p->ref = 1;
-    kfree((void*)p);
+    freepage((void*)p);
   }
 }
 
@@ -65,6 +72,7 @@ pageinit1(ulong end)
   u64 cbase, cend;
   uint npage = 0;
   page *block;
+  linit(&kmem.freelist);
   for (int i = 0; i < e820count; i++) {
     printk("e820 memory %p-%p %d\n", e820[i].base, e820[i].base+e820[i].len, e820[i].type);
     if (e820[i].type != 1)
@@ -82,5 +90,8 @@ pageinit1(ulong end)
     initblock(block, PAGEALIGN(cbase), end);
   }
   
-  printk("kmem %d pages (%d KiB) %d\n", kmem_npages(), kmem_npages() << 2, npage);
+  printk("kmem %d pages (%d KiB)\n", kmem_npages(), kmem_npages() << 2);
+  page *p = allocpage();
+  void *v = pageaddress(p);
+  printk("%p %p %p\n", p, v, addresspage(v));
 }

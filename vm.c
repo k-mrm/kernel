@@ -20,7 +20,7 @@ pagewalk(ulong *pgt, ulong virt, bool alloc)
       pgtpa = *pte & PTE_PA_MASK;
       pgt = (ulong*)va(pgtpa);
     } else if (alloc) {
-      p = kalloc();
+      p = allocpage();
       if (!p)
         return NULL;
       pgt = pageaddress(p);
@@ -62,7 +62,7 @@ kernelmap(void)
   ulong flags;
   page *cr3page;
   ulong v;
-  cr3page = kalloc();
+  cr3page = allocpage();
   if (!cr3page)
     panic("omg");
   kcr3 = pageaddress(cr3page);
@@ -84,6 +84,5 @@ kernelmap(void)
     }
   }
   // switch world
-  printk("f\n");
   wrcr3(kcr3pa);
 }
