@@ -40,7 +40,7 @@ preemptible(void)
 }
 
 // must be disabled preemption
-static cpu *
+cpu *
 mycpu(void)
 {
   uint id;
@@ -55,7 +55,7 @@ mycpu(void)
   panic("cpu!?");
 }
 
-static proc *
+proc *
 myproc(void)
 {
   proc *p;

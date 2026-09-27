@@ -414,6 +414,18 @@ wrmsr64 (u32 reg, u64 val)
 	__wrmsr(reg, a, d);
 }
 
+static inline uint
+cmpxchg(volatile uint *addr, uint expected, uint new)
+{
+  uint res;
+  asm volatile ("lock cmpxchgl %2, %1"
+                : "=a"(res), "+m"(*addr)
+                : "r"(new), "0"(expected)
+                : "cc", "memory");
+  return res;
+}
+
+
 static inline void
 sti(void)
 {
@@ -430,9 +442,9 @@ static inline u64
 irqsave(void)
 {
   u64 rflags;
-  asm volatile("pushfq\n"
-               "popq  %0"
-               : "=r"(rflags) :: "memory");
+  asm volatile ("pushfq\n"
+                "popq  %0"
+                : "=r"(rflags) :: "memory");
   asm volatile ("cli");
   return rflags;
 }
@@ -440,18 +452,18 @@ irqsave(void)
 static inline void
 irqrestore(u64 flags)
 {
-  asm volatile("pushq %0\n"
-               "popfq"
-               :: "r"(flags) : "memory", "cc");
+  asm volatile ("pushq %0\n"
+                "popfq"
+                :: "r"(flags) : "memory", "cc");
 }
 
 static inline bool
 irq_enabled(void)
 {
   u64 rflags;
-  asm volatile("pushfq\n"
-               "pop  %0\n"
-               : "=r"(rflags) :: "memory");
+  asm volatile ("pushfq\n"
+                "pop  %0\n"
+                : "=r"(rflags) :: "memory");
   return rflags & EFLAGS_IF;
 }
 

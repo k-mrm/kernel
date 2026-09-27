@@ -2,6 +2,7 @@
 #include <sys.h>
 #include <page.h>
 #include <list.h>
+#include <lock.h>
 
 #define KOBJ_16   0
 #define KOBJ_32   1
@@ -21,7 +22,7 @@ struct mfreelist {
 };
 
 struct mobj {
-  // spinlock lock;
+  spinlock lock;
   mfreelist *head;
   list pages; 
 };
@@ -43,6 +44,7 @@ up_pow2(u64 x)
   return (x <= 1) ? 1 : 1ULL << (ilog2(x - 1) + 1);
 }
 
+// locked p->obj
 static void
 __kfree(page *p, void *ptr)
 {
@@ -77,9 +79,9 @@ kfree(void *ptr)
     return;
   if (!p->obj)
     return;
-  // lock
+  lock(&p->obj->lock);
   __kfree(p, ptr);
-  // unlock
+  unlock(&p->obj->lock);
 }
 
 void *
@@ -96,7 +98,7 @@ kmalloc(uint sz)
     return NULL;
   idx = ilog2(sz) - 4;
   obj = mlist + idx;
-  // lock
+  lock(&obj->lock);
   if (!obj->head) {
     p = allocpage();
     if (!p)
@@ -107,7 +109,7 @@ kmalloc(uint sz)
   obj->head = m->next;
   p = addresspage((void*)m);
   p->inuse--;
-  // unlock
+  unlock(&obj->lock);
   return (void*)m;
 }
 
@@ -115,7 +117,7 @@ void
 kmallocinit(void)
 {
   for (int i = 0; i < NR_KOBJ; i++) {
-    // spinlockinit(&mlist[i].lock);
+    slockinit(&mlist[i].lock);
     mlist[i].head = NULL;
     linit(&mlist[i].pages);
   }
