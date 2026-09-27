@@ -234,39 +234,39 @@
 #define E_PF 0xe
 
 enum gatetype {
-	GATEDESC_64_INTR = 0xe,
-	GATEDESC_64_TRAP = 0xf,
+  GATEDESC_64_INTR = 0xe,
+  GATEDESC_64_TRAP = 0xf,
 };
 
 /*
  * x86 Gate Descriptor
  */
 struct gatedesc {
-	u16 offset_0_15;
-	u16 sel;
-	u8 ist : 3;
-	u8 _rsrv0 : 5;
-	u8 gatetype : 4;
-	u8 _zero : 1;
-	u8 dpl : 2;
-	u8 p : 1;
-	u16 offset_16_31;
-	u32 offset_32_63;
-	u32 _rsrv1;
+  u16 offset_0_15;
+  u16 sel;
+  u8 ist : 3;
+  u8 _rsrv0 : 5;
+  u8 gatetype : 4;
+  u8 _zero : 1;
+  u8 dpl : 2;
+  u8 p : 1;
+  u16 offset_16_31;
+  u32 offset_32_63;
+  u32 _rsrv1;
 } PACKED;
 
 struct trapframe {
-	u64 rax; u64 rbx; u64 rcx; u64 rdx;
-	u64 rbp; u64 rsi; u64 rdi; u64 r8;
-	u64 r9; u64 r10; u64 r11; u64 r12;
-	u64 r13; u64 r14; u64 r15; u64 trapno;
-	u64 errcode;
-	/* iret */
-	u64 rip;
-	u64 cs;
-	u64 rflags;
-	u64 rsp;
-	u64 ss;
+  u64 rax; u64 rbx; u64 rcx; u64 rdx;
+  u64 rbp; u64 rsi; u64 rdi; u64 r8;
+  u64 r9; u64 r10; u64 r11; u64 r12;
+  u64 r13; u64 r14; u64 r15; u64 trapno;
+  u64 errcode;
+  /* iret */
+  u64 rip;
+  u64 cs;
+  u64 rflags;
+  u64 rsp;
+  u64 ss;
 } PACKED;
 
 struct tss {
@@ -414,15 +414,45 @@ wrmsr64 (u32 reg, u64 val)
 	__wrmsr(reg, a, d);
 }
 
-static inline bool
-irqen (void)
+static inline void
+sti(void)
 {
-	u64 rflags;
-	asm volatile("pushfq\n"
-		     "pop  %0\n"
-		     : "=r"(rflags));
+  asm volatile ("sti");
+}
 
-	return rflags & EFLAGS_IF;
+static inline void
+cli(void)
+{
+  asm volatile ("cli");
+}
+
+static inline u64
+irqsave(void)
+{
+  u64 rflags;
+  asm volatile("pushfq\n"
+               "popq  %0"
+               : "=r"(rflags) :: "memory");
+  asm volatile ("cli");
+  return rflags;
+}
+
+static inline void
+irqrestore(u64 flags)
+{
+  asm volatile("pushq %0\n"
+               "popfq"
+               :: "r"(flags) : "memory", "cc");
+}
+
+static inline bool
+irq_enabled(void)
+{
+  u64 rflags;
+  asm volatile("pushfq\n"
+               "pop  %0\n"
+               : "=r"(rflags) :: "memory");
+  return rflags & EFLAGS_IF;
 }
 
 #endif	/* __ASSEMBLER__ */

@@ -44,6 +44,17 @@ up_pow2(u64 x)
 }
 
 static void
+__kfree(page *p, void *ptr)
+{
+  mfreelist *m;
+  mobj *obj = p->obj;
+  m = (mfreelist*)ptr;
+  m->next = obj->head;
+  obj->head = m;
+  p->inuse++;
+}
+
+static void
 kfreeobj(mobj *obj, page *p)
 {
   void *ptr;
@@ -52,7 +63,23 @@ kfreeobj(mobj *obj, page *p)
   p->obj = obj;
   ptr = pageaddress(p);
   for (uint b = 0; b < PAGESIZE; b += bsize)
-    kfree(ptr + b);
+    __kfree(p, ptr + b);
+}
+
+void
+kfree(void *ptr)
+{
+  page *p;
+  if (!ptr)
+    return;
+  p = addresspage(ptr);
+  if (!p)
+    return;
+  if (!p->obj)
+    return;
+  // lock
+  __kfree(p, ptr);
+  // unlock
 }
 
 void *
@@ -69,6 +96,7 @@ kmalloc(uint sz)
     return NULL;
   idx = ilog2(sz) - 4;
   obj = mlist + idx;
+  // lock
   if (!obj->head) {
     p = allocpage();
     if (!p)
@@ -79,27 +107,8 @@ kmalloc(uint sz)
   obj->head = m->next;
   p = addresspage((void*)m);
   p->inuse--;
+  // unlock
   return (void*)m;
-}
-
-void
-kfree(void *ptr)
-{
-  page *p;
-  mobj *obj;
-  mfreelist *m;
-  if (!ptr)
-    return;
-  p = addresspage(ptr);
-  if (!p)
-    return;
-  obj = p->obj;
-  if (!obj)
-    return;
-  m = (mfreelist*)ptr;
-  m->next = obj->head;
-  obj->head = m;
-  p->inuse++;
 }
 
 void

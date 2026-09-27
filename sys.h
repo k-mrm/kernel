@@ -13,6 +13,8 @@ typedef struct page page;
 typedef struct irq irq;
 typedef struct list list;
 typedef struct mobj mobj;
+typedef struct procvm procvm;
+typedef struct cpu cpu;
 
 // serial.c
 void serial_init(void);
@@ -45,6 +47,7 @@ char *strchr(const char *s, int c);
 char *strtok(char *s1, const char *s2);
 // proc.c
 void procinit(void);
+void cpuinit(void);
 // kmalloc.c
 void kmallocinit(void);
 void *kmalloc(uint sz);

@@ -20,7 +20,8 @@ bspmain(void)
   kernelmap();
   kmallocinit();
   lapicinit();
-  asm volatile ("sti");
-  for (;;)
-    hlt();
+  cpuinit();
+  procinit();
+  schedule();
+  panic("schedule() exited");
 }

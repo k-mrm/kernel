@@ -1,6 +1,5 @@
-// %rdi: context *prev 
-// %rsi: context *next
-// %rdx: proc *pprev
+// %rdi: u64 *prev_rsp
+// %rsi: u64 *next_rsp
 .text
 .global swtch
 swtch: 

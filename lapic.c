@@ -89,6 +89,12 @@ lapictimer_handle(irq *_)
   return 0;
 }
 
+uint
+lapicid(void)
+{
+  return lapicrd(ID) >> 24;
+}
+
 static void
 enlapictimer(void)
 {
