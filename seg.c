@@ -1,9 +1,8 @@
 #include <kernel.h>
 #include <asm.h>
 #include <sys.h>
+#include <proc.h>
 
-ulong gdt[NR_SEG];
-tss gtss = {0};
 typedef struct gdtdesc gdtdesc;
 typedef struct tssdesc tssdesc;
 
@@ -83,26 +82,6 @@ settssseg (ulong *gdt, int type, u64 base, u32 limit, int dpl)
   desc->reserved = 0;
 }
 
-
-static void
-tssinit(void)
-{
-  settssseg(gdt + SEG_TSS, STA_TSSA, (u64)&gtss, sizeof(gtss) - 1, DPL_KERNEL);
-}
-
-static void
-configgdt (void)
-{
-  gdt[SEG_NULL] = 0; // NULL Descriptor
-  setseg(gdt + SEG_KCODE32, STA_X | STA_R, 0, 0xffffffff, DPL_KERNEL, 0);
-  setseg(gdt + SEG_KDATA32, STA_W, 0, 0xffffffff, DPL_KERNEL, 0);
-  setseg(gdt + SEG_KCODE, STA_X | STA_R, 0, 0xffffffff, DPL_KERNEL, 1);
-  setseg(gdt + SEG_KDATA, STA_W, 0, 0xffffffff, DPL_KERNEL, 1);
-  setseg(gdt + SEG_UCODE, STA_X | STA_R, 0, 0xffffffff, DPL_USER, 1);
-  setseg(gdt + SEG_UDATA, STA_W, 0, 0xffffffff, DPL_USER, 1);
-  tssinit();
-}
-
 static inline void
 loadgdt(const ulong *gdt, ulong gdtsize)
 {
@@ -118,7 +97,16 @@ loadgdt(const ulong *gdt, ulong gdtsize)
 void
 seginit(void)
 {
-  configgdt();
+  ulong *gdt = mycpu()->gdt;
+  tss *ts = &mycpu()->ts;
+  gdt[SEG_NULL] = 0; // NULL Descriptor
+  setseg(gdt + SEG_KCODE32, STA_X | STA_R, 0, 0xffffffff, DPL_KERNEL, 0);
+  setseg(gdt + SEG_KDATA32, STA_W, 0, 0xffffffff, DPL_KERNEL, 0);
+  setseg(gdt + SEG_KCODE, STA_X | STA_R, 0, 0xffffffff, DPL_KERNEL, 1);
+  setseg(gdt + SEG_KDATA, STA_W, 0, 0xffffffff, DPL_KERNEL, 1);
+  setseg(gdt + SEG_UCODE, STA_X | STA_R, 0, 0xffffffff, DPL_USER, 1);
+  setseg(gdt + SEG_UDATA, STA_W, 0, 0xffffffff, DPL_USER, 1);
+  settssseg(gdt + SEG_TSS, STA_TSSA, (ulong)ts, sizeof(ts) - 1, DPL_KERNEL);
   loadgdt(gdt, sizeof gdt);
   asm volatile ("ltr %0" :: "r"(SEG_TSS << 3));
 }

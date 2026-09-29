@@ -8,7 +8,6 @@ typedef struct e820_entry e820_entry;
 typedef struct page page;
 typedef struct irq irq;
 typedef struct list list;
-typedef struct procvm procvm;
 
 // serial.c
 void serial_init(void);
@@ -18,6 +17,7 @@ void serial_putc(char c);
 void seginit(void);
 // trap.c
 void trapinit(void);
+void loadidt(void);
 void newirq(int irqno, void (*eoi)(irq*), int (*handle)(irq*));
 // printk.c
 int printk(const char *fmt, ...);
@@ -26,9 +26,6 @@ void NORETURN panic(const char *fmt, ...);
 void pageinit1(ulong);
 page *allocpage(void);
 void freepage(page*);
-// vm.c
-void kernelmap(void);
-void *iomap(ulong base, ulong size);
 // lib.c
 void *memcpy(void *dst, const void *src, ulong n);
 void *memmove(void *dst, const void *src, ulong n);
@@ -46,6 +43,7 @@ typedef struct context context;
 typedef struct cpu cpu;
 void procinit(void);
 void cpuinit(void);
+void schedule(void);
 cpu *mycpu(void);
 proc *myproc(void);
 // kmalloc.c
@@ -59,3 +57,11 @@ bool trylock(spinlock*);
 void lock(spinlock*);
 void unlock(spinlock*);
 void slockinit(spinlock*);
+// vm.c
+typedef struct segment segment;
+typedef struct pvm pvm;
+void kernelmap(void);
+void *iomap(ulong base, ulong size);
+void segload(segment*, page*);
+pvm *procvm(void);
+void vmswitch(proc*);

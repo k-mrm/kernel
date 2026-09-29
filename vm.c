@@ -3,6 +3,8 @@
 #include <sys.h>
 #include <memlayout.h>
 #include <page.h>
+#include <proc.h>
+#include <vm.h>
 
 static ulong *kcr3;
 static ulong kcr3pa;
@@ -85,4 +87,61 @@ kernelmap(void)
   }
   // switch world
   wrcr3(kcr3pa);
+}
+
+static segment *
+vaseg(void *virt)
+{
+  proc *pr = myproc();
+  segment *seg;
+  return seg;
+}
+
+void
+segload(segment *seg, page *p)
+{
+  if (!seg->downgrow) {
+    lappend(&seg->pagelist, &p->e);
+    seg->end += PAGESIZE;
+  } else {
+    ladd(&seg->pagelist, &p->e);
+    seg->base -= PAGESIZE;
+  }
+}
+
+pvm *
+procvm(void)
+{
+  pvm *vm;
+  vm = kmalloc(sizeof *vm);
+  if (!vm)
+    return NULL;
+  vm->cr3page = allocpage();
+  if (!vm->cr3page)
+    goto failed;
+  vm->cr3 = pageaddress(vm->cr3page);
+  linit(&stext(vm)->pagelist);
+  stext(vm)->r = 1;
+  stext(vm)->x = 1;
+  stext(vm)->end = stext(vm)->base = 0x1000;
+  linit(&sstack(vm)->pagelist);
+  sstack(vm)->r = 1;
+  sstack(vm)->w = 1;
+  sstack(vm)->downgrow = 1;
+  sstack(vm)->end = sstack(vm)->base = USTACKTOP;
+  return vm;
+failed:
+  if (vm->cr3page)
+    freepage(vm->cr3page);
+  kfree(vm);
+  return NULL;
+}
+
+void
+vmswitch(proc *p)
+{
+  pvm *vm = p->vm;
+  if (!vm)
+    return;
+  ;
 }

@@ -22,11 +22,17 @@ trylock(spinlock *lk)
   return true;
 }
 
+uint
+locked(spinlock *lk)
+{
+  return lk->lock;
+}
+
 void
 lock(spinlock *lk)
 {
   ulong flags;
-  cpu *c;
+  uint c;
   flags = irqsave();
   c = lapicid();
   if (lk->holder == c)

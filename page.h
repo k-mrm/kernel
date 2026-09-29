@@ -28,12 +28,12 @@ struct page {
   uint ref;
 }; 
 
-#define ALIGN(_p, align)	(((ulong)(_p) + (align)-1) & ~((align)-1))
-#define ALIGNDOWN(_p, align)	((ulong)(_p) & ~((align)-1))
-#define PAGEALIGNED(_p)		(((ulong)(_p) & (PAGESIZE-1)) == 0)
-#define PAGEALIGN(_p)		ALIGN((_p), PAGESIZE)
-#define PAGEALIGNDOWN(_p)	ALIGNDOWN((_p), PAGESIZE)
-#define PAGEOFFSET(_p)		((ulong)(_p) & (PAGESIZE-1))
+#define ALIGN(_p, _a)       (((ulong)(_p) + (_a)-1) & ~((_a)-1))
+#define ALIGNDOWN(_p, _a)   ((ulong)(_p) & ~((_a)-1))
+#define PAGEALIGNED(_p)     (((ulong)(_p) & (PAGESIZE-1)) == 0)
+#define PAGEALIGN(_p)       ALIGN((_p), PAGESIZE)
+#define PAGEALIGNDOWN(_p)   ALIGNDOWN((_p), PAGESIZE)
+#define PAGEOFFSET(_p)      ((ulong)(_p) & (PAGESIZE-1))
 
 static inline void *
 pageaddress(page *p)

@@ -4,7 +4,6 @@
 #include <irq.h>
 
 static irq irqa[NR_INTERRUPT] = {0};
-
 gatedesc idt[NR_INTERRUPT];
 extern ulong allvectors[];
 // __vector0xnn_()
@@ -165,9 +164,10 @@ VENTRY(0xfc); VENTRY(0xfd); VENTRY(0xfe); VENTRY(0xff);
 
 asm (".text \n");
 
-static inline void
-loadidt(gatedesc *idt, ulong sz)
+void
+loadidt(void)
 {
+  ulong sz = sizeof idt;
   volatile u16 t[5];
   t[0] = (u16)sz - 1;
   t[1] = (u16)(ulong)idt;
@@ -199,7 +199,6 @@ trapinit(void)
   for (uint i = 0; i < NR_INTERRUPT; i++)
     setgate(idt + i, allvectors[i], SEG_KCODE << 3, GATEDESC_64_INTR, DPL_KERNEL);
   setgate(idt + 0x80, allvectors[0x80], SEG_KCODE << 3, GATEDESC_64_TRAP, DPL_USER);
-  loadidt(idt, sizeof idt);
 }
 
 static void

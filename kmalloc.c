@@ -39,7 +39,7 @@ ilog2(u64 x)
 }
 
 static inline u64
-up_pow2(u64 x)
+pow2(u64 x)
 {
   return (x <= 1) ? 1 : 1ULL << (ilog2(x - 1) + 1);
 }
@@ -50,6 +50,8 @@ __kfree(page *p, void *ptr)
 {
   mfreelist *m;
   mobj *obj = p->obj;
+  if (!locked(&obj->lock))
+    panic("__kfree");
   m = (mfreelist*)ptr;
   m->next = obj->head;
   obj->head = m;
@@ -91,7 +93,7 @@ kmalloc(uint sz)
   mobj *obj;
   page *p;
   mfreelist *m;
-  sz = up_pow2(sz);
+  sz = pow2(sz);
   if (sz < 16)
     sz = 16;
   else if (sz > 1024)

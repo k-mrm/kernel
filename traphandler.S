@@ -1,3 +1,5 @@
+#include <asm.h>
+
 .text
 .align 8
 .globl traphandler
@@ -40,4 +42,19 @@ trapret:
   popq  %r15
   
   addq  $16, %rsp   // Trapno and error code
+  iretq
+
+// %rdi: sp
+.global uenter
+uenter:
+  // push %ss
+  pushq $((SEG_UDATA << 3) | DPL_USER)
+  // push %rsp
+  pushq %rdi
+  // push rflags
+  pushq $(0x200)  // I
+  // push %cs
+  pushq $((SEG_UCODE << 3) | DPL_USER)
+  // push %rip
+  pushq $(0x1000)
   iretq

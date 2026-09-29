@@ -3,22 +3,27 @@
 #include <sys.h>
 #include <proc.h>
 #include <page.h>
+#include <lock.h>
+#include <vm.h>
 
 static LIST_HEAD(proctable);
-// static SPINLOCK(proctable_lk);
+static SPINLOCK(proctable_lk);
 static uint nextpid = 1;
-// static SPINLOCK(pid_lk);
+static SPINLOCK(pid_lk);
 static LIST_HEAD(cpus);
 static LIST_HEAD(runq);
-// static SPINLOCK(runq_lk);
+static SPINLOCK(runq_lk);
+static proc *proc0;
+
+void uenter(ulong);
 
 static uint
 allocpid(void)
 {
   uint n;
-  // lock(&pid_lk);
+  lock(&pid_lk);
   n = nextpid++;
-  // unlock(&pid_lk);
+  unlock(&pid_lk);
   return n;
 }
 
@@ -75,10 +80,10 @@ sleep(void)
 static void
 ready(proc *p)
 {
-  // lock(&runq_lk);
+  lock(&runq_lk);
   p->state = READY;
   lappend(&runq, &p->rq);
-  // unlock(&runq_lk);
+  unlock(&runq_lk);
 }
 
 static proc *
@@ -94,9 +99,9 @@ allocproc(void)
   pr->pid = allocpid();
   pr->vm = NULL;
   pr->state = NEWBORN;
-  // lock(&proctable_lk);
+  lock(&proctable_lk);
   lappend(&proctable, &pr->ptable);
-  // unlock(&proctable_lk);
+  unlock(&proctable_lk);
   return pr;
 
 failed:
@@ -115,6 +120,7 @@ ktrampoline(void)
 {
   proc *p = myproc();
   int r;
+  sti();
   r = (*p->kf)(p->ka);
   exit(r);
 }
@@ -154,10 +160,8 @@ fork(void)
 static bool
 runnable(proc *p)
 {
-  /*
   if (!trylock(&runq_lk))
     return false;
-    */
   proc *a;
   LIST_FOREACH (a, &runq, rq) {
     if (a == p)
@@ -166,11 +170,12 @@ runnable(proc *p)
   p = NULL;
 found:
   if (!p || p->state == RUNNING) {
-    // unlock(&runq_lk);
+    unlock(&runq_lk);
     return false;
   }
   p->state = RUNNING;
   ldelete(&p->rq);
+  unlock(&runq_lk);
   return true;
 }
 
@@ -192,12 +197,9 @@ found:
     goto runloop;
   c->current = p;
   p->prevcpu = c;
-  // if (p->vm)
-  //  vmproc(p->vm);
+  vmswitch(p);
   swtch(&c->sched, &p->sp);
-  // vmkernel();
   c->current = NULL;
-  // unlock(&runq_lk);
   goto runloop;
 }
 
@@ -210,10 +212,24 @@ sched(void)
 static int
 init0(void *_)
 {
+  page *tp, *sp;
   printk("init0!\n");
-  for (;;)
-    ;
-  return 0;
+  proc0 = myproc();
+  proc0->vm = procvm();
+  if (!proc0->vm)
+    panic("init0 vm");
+  tp = allocpage();
+  if (!tp)
+    panic("init0 text");
+  sp = allocpage();
+  if (!sp)
+    panic("init0 stack");
+  segload(stext(proc0->vm), tp);
+  segload(sstack(proc0->vm), sp);
+  // memcpy(pageaddress(tp), );
+  vmswitch(proc0);
+  uenter(USTACKTOP);
+  panic("init0 exit");
 }
 
 void

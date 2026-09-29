@@ -4,24 +4,30 @@
 #include <memlayout.h>
 
 void NORETURN
-apmain(void)
+kmain(void)
 {
-  for (;;)
-    hlt();
+  loadidt();
+  lapicinit();
+  cpuinit();
+  seginit();
+  schedule();
+  panic("exit");
 }
 
 void NORETURN
 bspmain(void)
 {
   serial_init();
-  seginit();
   trapinit();
   pageinit1((ulong)va(1024*1024*1024));  // 1GiB
   kernelmap();
   kmallocinit();
-  lapicinit();
-  cpuinit();
   procinit();
-  schedule();
-  panic("schedule() exited");
+  kmain();
+}
+
+void NORETURN
+apmain(void)
+{
+  ;
 }

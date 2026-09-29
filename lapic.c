@@ -24,7 +24,7 @@
 #define TM_CURRENT  0x390
 #define TM_DIV      0x3e0
 
-volatile void *lapic;
+volatile void *lapic = NULL;
 
 static inline u32
 ioread32(volatile void *base, u32 off)
@@ -92,7 +92,10 @@ lapictimer_handle(irq *_)
 uint
 lapicid(void)
 {
-  return lapicrd(ID) >> 24;
+  if (lapic)
+    return lapicrd(ID) >> 24;
+  else
+    return 0;
 }
 
 static void

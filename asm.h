@@ -216,6 +216,8 @@
 
 #include <kernel.h>
 
+#define CACHELINE       64
+
 #define NR_INTERRUPT	256
 #define INT_NMI		2
 
@@ -290,79 +292,79 @@ struct tss {
 static inline void
 hlt(void)
 {
-	asm volatile ("hlt");
+  asm volatile ("hlt");
 }
 
 static inline void
-outb (u16 port, u8 data)
+outb(u16 port, u8 data)
 {
-	asm volatile ("outb %0, %1" ::"a"(data), "d"(port));
+  asm volatile ("outb %0, %1" ::"a"(data), "d"(port));
 }
 
 static inline void
-outw (u16 port, u16 data)
+outw(u16 port, u16 data)
 {
-	asm volatile ("outw %0, %1" ::"a"(data), "d"(port));
+  asm volatile ("outw %0, %1" ::"a"(data), "d"(port));
 }
 
 static inline void
-outl (u16 port, u32 data)
+outl(u16 port, u32 data)
 {
-	asm volatile ("outl %0, %1" ::"a"(data), "d"(port));
+  asm volatile ("outl %0, %1" ::"a"(data), "d"(port));
 }
 
 static inline u8
-inb (u16 port)
+inb(u16 port)
 {
-	u8 data;
-	asm volatile ("inb %1, %0" : "=a"(data) : "d"(port));
-	return data;
+  u8 data;
+  asm volatile ("inb %1, %0" : "=a"(data) : "d"(port));
+  return data;
 }
 
 static inline u16
-inw (u16 port)
+inw(u16 port)
 {
-	u16 data;
-	asm volatile("inw %1, %0" : "=a"(data) : "d"(port));
-	return data;
+  u16 data;
+  asm volatile("inw %1, %0" : "=a"(data) : "d"(port));
+  return data;
 }
 
 static inline u32
-inl (u16 port)
+inl(u16 port)
 {
-	u32 data;
-	asm volatile("inl %1, %0" : "=a"(data) : "d"(port));
-	return data;
+  u32 data;
+  asm volatile("inl %1, %0" : "=a"(data) : "d"(port));
+  return data;
 }
 
 static inline ulong
-rdcr2 (void)
+rdcr2(void)
 {
-	ulong r;
-	asm volatile ("movq %%cr2, %0" : "=r"(r));
-	return r;
+  ulong r;
+  asm volatile ("movq %%cr2, %0" : "=r"(r));
+  return r;
 }
 
 static inline ulong
-rdcr3 (void)
+rdcr3(void)
 {
-	ulong r;
-	asm volatile ("movq %%cr3, %0" : "=r"(r));
-	return r;
+  ulong r;
+  asm volatile ("movq %%cr3, %0" : "=r"(r));
+  return r;
 }
 
 static inline void
-wrcr3 (ulong cr3)
+wrcr3(ulong cr3)
 {
-	asm volatile ("movq %0, %%cr3" :: "r"(cr3));
+  asm volatile ("movq %0, %%cr3" :: "r"(cr3));
 }
 
 static inline ulong
-rdcr4 (void)
+rdcr4(void)
 {
-	ulong r;
-	asm volatile ("movq %%cr4, %0" : "=r"(r));
-	return r;
+  ulong r;
+  asm volatile ("movq %%cr4, %0" : "=r"(r));
+  return r;
 }
 
 static inline void

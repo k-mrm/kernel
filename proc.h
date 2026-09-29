@@ -23,6 +23,8 @@ struct cpu {
   proc *current;
   list cpulist;
   uint id;
+  tss ts;
+  ulong gdt[NR_SEG];
 };
 
 struct proc {
@@ -32,8 +34,7 @@ struct proc {
   page *kstackpage;
   list ptable;
   list rq;
-  // spinlock lock
-  procvm *vm;
+  pvm *vm;
   ulong sp;
   cpu *prevcpu;
   int (*kf)(void *ka);
