@@ -106,7 +106,7 @@ seginit(void)
   setseg(gdt + SEG_KDATA, STA_W, 0, 0xffffffff, DPL_KERNEL, 1);
   setseg(gdt + SEG_UCODE, STA_X | STA_R, 0, 0xffffffff, DPL_USER, 1);
   setseg(gdt + SEG_UDATA, STA_W, 0, 0xffffffff, DPL_USER, 1);
-  settssseg(gdt + SEG_TSS, STA_TSSA, (ulong)ts, sizeof(ts) - 1, DPL_KERNEL);
-  loadgdt(gdt, sizeof gdt);
+  settssseg(gdt + SEG_TSS, STA_TSSA, (ulong)ts, sizeof(*ts) - 1, DPL_KERNEL);
+  loadgdt(gdt, sizeof mycpu()->gdt);
   asm volatile ("ltr %0" :: "r"(SEG_TSS << 3));
 }

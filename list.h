@@ -67,7 +67,7 @@ llen(list *h)
 static inline bool
 lempty(list *h)
 {
-  return llen(h) == 0;
+  return h->next == h;
 }
 
 static inline void

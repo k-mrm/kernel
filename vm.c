@@ -120,6 +120,7 @@ procvm(void)
   if (!vm->cr3page)
     goto failed;
   vm->cr3 = pageaddress(vm->cr3page);
+  memcpy(vm->cr3, kcr3, PAGESIZE);
   linit(&stext(vm)->pagelist);
   stext(vm)->r = 1;
   stext(vm)->x = 1;
@@ -141,7 +142,11 @@ void
 vmswitch(proc *p)
 {
   pvm *vm = p->vm;
+  ulong flags;
   if (!vm)
     return;
-  ;
+  flags = irqsave();
+  mycpu()->ts.rsp0 = (u64)pageaddress(p->kstackpage) + PAGESIZE;
+  wrcr3(pa(vm->cr3));
+  irqrestore(flags);
 }

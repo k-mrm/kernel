@@ -53,14 +53,30 @@ kernel.img: bootblock kernel.bin
 
 clean:
 	@echo CLEAN
-	$(RM) *.o *.d *.elf *.bin *.img bootblock
+	$(RM) *.o *.d *.elf *.bin *.img bootblock .gdbinit
+
+QEMUOPTS = -nographic -drive file=kernel.img,index=0,media=disk,format=raw -smp $(NCPU) -m $(MEMSZ)
 
 qemu: kernel.img
-	$(QEMU) -nographic -drive file=kernel.img,index=0,media=disk,format=raw -smp $(NCPU) -m $(MEMSZ)
+	$(QEMU) $(QEMUOPTS)
 
 qemu-kvm: kernel.img
-	$(QEMU) -accel kvm -cpu host -nographic -drive file=kernel.img,index=0,media=disk,format=raw -smp $(NCPU) -m $(MEMSZ)
+	$(QEMU) -accel kvm -cpu host $(QEMUOPTS)
 
-.PHONY: all clean qemu qemu-kvm
+qemu-gdb: kernel.img .gdbinit
+	@echo "Waiting for gdb on tcp::1234 ..."
+	$(QEMU) $(QEMUOPTS) -s -S
+
+gdb: kernel.elf .gdbinit
+	gdb kernel.elf
+
+.gdbinit:
+	@echo "set architecture i386:x86-64"          >  $@
+	@echo "set disassembly-flavor att"             >> $@
+	@echo "target remote localhost:1234"           >> $@
+	@echo "symbol-file kernel.elf"                 >> $@
+	@echo "set confirm off"                        >> $@
+
+.PHONY: all clean qemu qemu-kvm qemu-gdb gdb
 
 -include $(OBJS:.o=.d) boot.d
