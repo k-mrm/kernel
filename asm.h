@@ -271,6 +271,8 @@ struct trapframe {
   u64 ss;
 } PACKED;
 
+#define FROMUSER(_tf)  (((_tf)->cs & 3) == DPL_USER)
+
 struct tss {
   u32 reserved0;
   u64 rsp0;

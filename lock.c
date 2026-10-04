@@ -25,7 +25,7 @@ trylock(spinlock *lk)
 uint
 locked(spinlock *lk)
 {
-  return lk->lock;
+  return lk->lock && lapicid() == lk->holder;
 }
 
 void

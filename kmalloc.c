@@ -11,7 +11,9 @@
 #define KOBJ_256  4
 #define KOBJ_512  5
 #define KOBJ_1024 6
-#define NR_KOBJ   7
+#define KOBJ_2048 7
+#define KOBJ_4096 8
+#define NR_KOBJ   9
 
 #define KOBJ_BSIZE(_m)  (1 << (((_m) - mlist) + 4))
 
@@ -96,7 +98,7 @@ kmalloc(uint sz)
   sz = pow2(sz);
   if (sz < 16)
     sz = 16;
-  else if (sz > 1024)
+  else if (sz > 4096)
     return NULL;
   idx = ilog2(sz) - 4;
   obj = mlist + idx;

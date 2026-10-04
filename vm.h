@@ -4,14 +4,19 @@
 #include <kernel.h>
 #include <sys.h>
 #include <page.h>
+#include <lock.h>
+
+struct pagetree {
+  page *pages[512];
+};
 
 struct segment {
   ulong base, end;
-  list pagelist;
+  pagetree *pt[64]; // 2MiB * 64 = 128 MiB
+  spinlock lk;
   bool r: 1;
   bool w: 1;
   bool x: 1;
-  bool downgrow: 1;
 };
 
 struct pvm {

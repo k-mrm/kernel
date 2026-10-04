@@ -89,24 +89,95 @@ kernelmap(void)
   wrcr3(kcr3pa);
 }
 
-static segment *
-vaseg(void *virt)
+static void
+vmmappage(ulong virt, ulong phys, ulong flags)
 {
-  proc *pr = myproc();
+  mappages(myproc()->vm->cr3, virt, phys, PAGESIZE, flags);
+}
+
+static segment *
+vaseg(ulong virt)
+{
+  pvm *vm = myproc()->vm;
   segment *seg;
-  return seg;
+  for (seg = vm->seg; seg < vm->seg + 3; seg++)
+    if (seg->base <= virt && virt < seg->end)
+      return seg;
+  return NULL;
+}
+
+/*
+ *           21          12          0
+ *  | ptindex | pt offset | page off |
+ *
+ */
+static page **
+ptwalk(segment *seg, ulong off)
+{
+  pagetree **ppt;
+  page *p;
+  ppt = &seg->pt[(off >> 21) & 0x3f];
+  if (!*ppt) {
+    p = allocpage();
+    if (!p)
+      return NULL;
+    *ppt = pageaddress(p);
+  }
+  return &(*ppt)->pages[(off >> 12) & 0x1ff];
+}
+
+int
+faultresume(ulong addr, int wr, int user)
+{
+  segment *seg;
+  page *p, **pp;
+  ulong flags = 0;
+  seg = vaseg(addr);
+  if (!seg) {
+    if (user) {
+      // signal segfault
+      return -1;
+    } else
+      return -1;
+  }
+  flags = (seg->w ? PTE_W : 0) |
+          PTE_P |
+          PTE_U;
+  pp = ptwalk(seg, addr - seg->base);
+  if (!pp)
+    return -1;
+  if (!*pp) {
+    p = allocpage();
+    if (!p)
+      return -1;
+    *pp = p;
+  } 
+  vmmappage(PAGEALIGNDOWN(addr), pa(pageaddress(*pp)), flags);
+  return 0;
 }
 
 void
-segload(segment *seg, page *p)
+vmsegload(segment *seg, ulong uv, page *p)
 {
-  if (!seg->downgrow) {
-    lappend(&seg->pagelist, &p->e);
-    seg->end += PAGESIZE;
-  } else {
-    ladd(&seg->pagelist, &p->e);
-    seg->base -= PAGESIZE;
-  }
+  ulong off;
+  page **pp;
+  if (uv < seg->base || seg->end <= uv)
+    return;
+  off = uv - seg->base;
+  printk("ptwalk %p %p\n", uv, off);
+  pp = ptwalk(seg, off);
+  if (!pp)
+    return;
+  *pp = p;
+}
+
+void
+vmseginit(segment *seg, ulong base, ulong size)
+{
+  if (!PAGEALIGNED(base) || !PAGEALIGNED(size))
+    panic("vmseginit");
+  seg->base = base;
+  seg->end = base + size;
 }
 
 pvm *
@@ -121,15 +192,10 @@ procvm(void)
     goto failed;
   vm->cr3 = pageaddress(vm->cr3page);
   memcpy(vm->cr3, kcr3, PAGESIZE);
-  linit(&stext(vm)->pagelist);
   stext(vm)->r = 1;
   stext(vm)->x = 1;
-  stext(vm)->end = stext(vm)->base = 0x1000;
-  linit(&sstack(vm)->pagelist);
   sstack(vm)->r = 1;
   sstack(vm)->w = 1;
-  sstack(vm)->downgrow = 1;
-  sstack(vm)->end = sstack(vm)->base = USTACKTOP;
   return vm;
 failed:
   if (vm->cr3page)

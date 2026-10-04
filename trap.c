@@ -202,9 +202,13 @@ trapinit(void)
 }
 
 static void
-pagefault (trapframe *tf)
+pagefault(trapframe *tf)
 {
-  panic("pf %p", rdcr2());
+  int err;
+  ulong faultaddr = rdcr2();
+  err = faultresume(faultaddr, tf->errcode & 2, FROMUSER(tf));
+  if (err < 0)
+    panic("kernel pagefault %p", faultaddr);
 }
 
 static void
@@ -254,6 +258,7 @@ trap(trapframe *tf)
       break;
     case 0x80:
       // syscall (tf);
+      panic("syscall");
       break;
     default:
       err = irqhandle(tf);

@@ -160,9 +160,9 @@ fork(void)
 static bool
 runnable(proc *p)
 {
+  proc *a;
   if (!trylock(&runq_lk))
     return false;
-  proc *a;
   LIST_FOREACH (a, &runq, rq) {
     if (a == p)
       goto found;
@@ -187,14 +187,18 @@ schedule(void)
 runloop:
   sti();
   for (;;) {
+    lock(&runq_lk);
     LIST_FOREACH (p, &runq, rq) {
       goto found;
     }
+    unlock(&runq_lk);
+    hlt();
   }
 found:
+  ldelete(&p->rq);
+  unlock(&runq_lk);
   cli();
-  if (!runnable(p))
-    goto runloop;
+  p->state = RUNNING;
   c->current = p;
   p->prevcpu = c;
   vmswitch(p);
@@ -213,20 +217,25 @@ static int
 init0(void *_)
 {
   page *tp, *sp;
+  extern char _binary_uinit_start[];
+  extern char _binary_uinit_end[];
+  int isize = _binary_uinit_end - _binary_uinit_start;
   printk("init0!\n");
   proc0 = myproc();
   proc0->vm = procvm();
   if (!proc0->vm)
-    panic("init0 vm");
+    panic("init0 vm %d", sizeof(pvm));
   tp = allocpage();
   if (!tp)
     panic("init0 text");
   sp = allocpage();
   if (!sp)
     panic("init0 stack");
-  segload(stext(proc0->vm), tp);
-  segload(sstack(proc0->vm), sp);
-  // memcpy(pageaddress(tp), );
+  vmseginit(stext(proc0->vm), 0x1000, 0x1000);
+  vmseginit(sstack(proc0->vm), USTACKTOP - 0x1000, 0x1000);
+  vmsegload(stext(proc0->vm), 0x1000, tp);
+  vmsegload(sstack(proc0->vm), USTACKTOP - 0x1000, sp);
+  memcpy(pageaddress(tp), _binary_uinit_start, isize);
   vmswitch(proc0);
   uenter(USTACKTOP);
   panic("init0 exit");

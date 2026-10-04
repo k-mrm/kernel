@@ -57,7 +57,9 @@ bool trylock(spinlock*);
 void lock(spinlock*);
 void unlock(spinlock*);
 void slockinit(spinlock*);
+uint locked(spinlock*);
 // vm.c
+typedef struct pagetree pagetree;
 typedef struct segment segment;
 typedef struct pvm pvm;
 void kernelmap(void);
@@ -65,3 +67,6 @@ void *iomap(ulong base, ulong size);
 void segload(segment*, page*);
 pvm *procvm(void);
 void vmswitch(proc*);
+void vmsegload(segment*, ulong, page*);
+void vmseginit(segment*, ulong, ulong);
+int faultresume(ulong, int, int);

@@ -31,15 +31,20 @@ all: kernel.img
 	@echo AS $@
 	@$(CC) $(CFLAGS) -c $< -o $@
 
+uinit: uinit.S
+	$(CC) $(CFLAGS) -c uinit.S -o uinit.o
+	$(LD) -nostdlib -N -e main -Ttext 0x1000 -o uinit.elf uinit.o
+	$(OBJCOPY) -S -O binary uinit.elf uinit
+
 bootblock: boot.o
 	@echo LD $@
 	@$(LD) $(LDFLAGS) -N -e start -Ttext 0x7c00 -o boot.elf $<
 	@$(OBJCOPY) -S -O binary -j .text boot.elf $@
 	@rm -f boot.elf
 
-kernel.elf: $(OBJS) kernel.ld
+kernel.elf: $(OBJS) kernel.ld uinit
 	@echo LD $@
-	@$(LD) -n $(LDFLAGS) -T kernel.ld -o $@ $(OBJS)
+	@$(LD) -n $(LDFLAGS) -T kernel.ld -o $@ $(OBJS) -b binary uinit
 
 kernel.bin: kernel.elf
 	@echo OBJCOPY $@
