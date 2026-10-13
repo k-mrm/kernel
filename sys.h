@@ -61,6 +61,7 @@ typedef struct cpu cpu;
 void sleep(waitpoint*, spinlock*);
 void wakeup(waitpoint*);
 void procinit(void);
+void cpu0init(void);
 void cpuinit(void);
 void schedule(void);
 cpu *mycpu(void);

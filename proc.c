@@ -75,10 +75,12 @@ myproc(void)
 static void
 ready(proc *p)
 {
+  u64 flags = irqsave();
   lock(&runq_lk);
   p->state = READY;
   lappend(&runq, &p->rq);
   unlock(&runq_lk);
+  irqrestore(flags);
 }
 
 void
@@ -172,9 +174,14 @@ kspawn(const char *name, void *f, void *a)
 }
 
 static void
-freeproc(proc *pr)
+freeproc(proc *p)
 {
-  kfree(pr);
+  // TODO
+  freepage(p->kstackpage);
+  lock(&proctable_lk);
+  ldelete(&p->ptable);
+  unlock(&proctable_lk);
+  kfree(p);
 }
 
 int
@@ -205,24 +212,26 @@ schedule(void)
 runloop:
   sti();
   for (;;) {
+    cli();
     lock(&runq_lk);
     LIST_FOREACH (p, &runq, rq) {
       if (!p->cpu)
         goto found;
     }
     unlock(&runq_lk);
+    sti();
     hlt();
   }
 found:
   ldelete(&p->rq);
   unlock(&runq_lk);
-  cli();
   p->state = RUNNING;
   c->current = p;
   p->cpu = p->prevcpu = c;
   vmswitch(p);
   swtch(&c->sched, &p->sp);
-  p->cpu = c->current = NULL;
+  c->current = NULL;
+  p->cpu = NULL;
   goto runloop;
 }
 
@@ -256,7 +265,6 @@ init0(void *_)
 void
 procinit(void)
 {
-  printk("spawn init\n");
   kspawn("init", init0, NULL);
 }
 
