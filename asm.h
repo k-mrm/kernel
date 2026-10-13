@@ -400,22 +400,58 @@ rdmsr64 (u32 reg)
 static inline void
 __wrmsr (u32 reg, u32 a, u32 d)
 {
-	asm volatile("wrmsr" ::"c"(reg), "a"(a), "d"(d));
+  asm volatile ("wrmsr" :: "c" (reg), "a" (a), "d" (d));
 }
 
 static inline void
 wrmsr32 (u32 reg, u32 val)
 {
-	__wrmsr(reg, val, 0);
+  __wrmsr(reg, val, 0);
 }
 
 static inline void
 wrmsr64 (u32 reg, u64 val)
 {
-	u32 a, d;
-	a = (u32)val;
-	d = (u32)(val >> 32);
-	__wrmsr(reg, a, d);
+  u32 a, d;
+  a = (u32)val;
+  d = (u32)(val >> 32);
+  __wrmsr(reg, a, d);
+}
+
+static inline void
+insw(int port, void *addr, int cnt)
+{
+  asm volatile ("cld; rep insw" :
+                "=D" (addr), "=c" (cnt) :
+                "d" (port), "0" (addr), "1" (cnt) :
+                "memory", "cc");
+}
+
+static inline void
+outsw(int port, const void *addr, int cnt)
+{
+  asm volatile ("cld; rep outsw" :
+                "=S" (addr), "=c" (cnt) :
+                "d" (port), "0" (addr), "1" (cnt) :
+                "cc");
+}
+
+static inline void
+insl(int port, void *addr, int cnt)
+{
+  asm volatile ("cld; rep insl" :
+                "=D" (addr), "=c" (cnt) :
+                "d" (port), "0" (addr), "1" (cnt) :
+                "memory", "cc");
+}
+
+static inline void
+outsl(int port, const void *addr, int cnt)
+{
+  asm volatile ("cld; rep outsl" :
+                "=S" (addr), "=c" (cnt) :
+                "d" (port), "0" (addr), "1" (cnt) :
+                "cc");
 }
 
 static inline uint
@@ -423,12 +459,11 @@ cmpxchg(volatile uint *addr, uint expected, uint new)
 {
   uint res;
   asm volatile ("lock cmpxchgl %2, %1"
-                : "=a"(res), "+m"(*addr)
-                : "r"(new), "0"(expected)
+                : "=a" (res), "+m" (*addr)
+                : "r" (new), "0" (expected)
                 : "cc", "memory");
   return res;
 }
-
 
 static inline void
 sti(void)
@@ -448,7 +483,7 @@ irqsave(void)
   u64 rflags;
   asm volatile ("pushfq\n"
                 "popq  %0"
-                : "=r"(rflags) :: "memory");
+                : "=r" (rflags) :: "memory");
   asm volatile ("cli");
   return rflags;
 }
@@ -458,7 +493,7 @@ irqrestore(u64 flags)
 {
   asm volatile ("pushq %0\n"
                 "popfq"
-                :: "r"(flags) : "memory", "cc");
+                :: "r" (flags) : "memory", "cc");
 }
 
 static inline bool
@@ -467,8 +502,19 @@ irq_enabled(void)
   u64 rflags;
   asm volatile ("pushfq\n"
                 "pop  %0\n"
-                : "=r"(rflags) :: "memory");
+                : "=r" (rflags) :: "memory");
   return rflags & EFLAGS_IF;
+}
+
+static inline int
+xadd(volatile int *x, int v)
+{
+  int old;
+  asm volatile ("lock xaddl %0, %1"
+                : "=r"(old), "+m"(*x)
+                : "0"(v)
+                : "memory");
+  return old;
 }
 
 #endif	/* __ASSEMBLER__ */

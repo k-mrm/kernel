@@ -5,36 +5,37 @@
 #include <page.h>
 #include <lock.h>
 #include <vm.h>
+#include <wait.h>
 
 static LIST_HEAD(proctable);
 static SPINLOCK(proctable_lk);
-static uint nextpid = 1;
-static SPINLOCK(pid_lk);
+static int nextpid = 1;
 static LIST_HEAD(cpus);
 static LIST_HEAD(runq);
 static SPINLOCK(runq_lk);
 static proc *proc0;
+static cpu cpu0;
 
 void uenter(ulong);
 
 static uint
 allocpid(void)
 {
-  uint n;
-  lock(&pid_lk);
-  n = nextpid++;
-  unlock(&pid_lk);
-  return n;
+  return xadd(&nextpid, 1);
 }
 
 static proc *
-pid_to_proc(uint pid)
+pid2proc(uint pid)
 {
   proc *p;
+  lock(&proctable_lk);
   LIST_FOREACH (p, &proctable, ptable) {
-    if (p->pid == pid)
+    if (p->pid == pid) {
+      unlock(&proctable_lk);
       return p;
+    }
   }
+  unlock(&proctable_lk);
   return NULL;
 }
 
@@ -72,12 +73,6 @@ myproc(void)
 }
 
 static void
-sleep(void)
-{
-  proc *p = myproc();
-}
-
-static void
 ready(proc *p)
 {
   lock(&runq_lk);
@@ -86,26 +81,57 @@ ready(proc *p)
   unlock(&runq_lk);
 }
 
+void
+sleep(waitpoint *w, spinlock *lk)
+{
+  proc *p = myproc();
+  u64 flags;
+  if (!p)
+    panic("sleep");
+  lock(&w->lk);
+  unlock(lk);
+  w->p = p;
+  p->state = BLOCKED;
+  unlock(&w->lk);
+  flags = irqsave();
+  swtch(&p->sp, &mycpu()->sched);
+  irqrestore(flags);
+  lock(lk);
+}
+
+void
+wakeup(waitpoint *w)
+{
+  proc *p;
+  lock(&w->lk);
+  p = w->p;
+  if (!p)
+    goto end;
+  w->p = NULL;
+  ready(p);
+end:
+  unlock(&w->lk);
+}
+
 static proc *
 allocproc(void)
 {
-  proc *pr;
-  pr = kmalloc(sizeof *pr);
-  if (!pr)
+  proc *p;
+  p = kmalloc(sizeof *p);
+  if (!p)
     return NULL;
-  pr->kstackpage = allocpage();
-  if (!pr->kstackpage)
+  p->kstackpage = allocpage();
+  if (!p->kstackpage)
     goto failed;
-  pr->pid = allocpid();
-  pr->vm = NULL;
-  pr->state = NEWBORN;
+  p->pid = allocpid();
+  p->vm = NULL;
+  p->state = NEWBORN;
   lock(&proctable_lk);
-  lappend(&proctable, &pr->ptable);
+  lappend(&proctable, &p->ptable);
   unlock(&proctable_lk);
-  return pr;
-
+  return p;
 failed:
-  kfree(pr);
+  kfree(p);
   return NULL;
 }
 
@@ -154,29 +180,21 @@ freeproc(proc *pr)
 int
 fork(void)
 {
-  ;
-}
-
-static bool
-runnable(proc *p)
-{
-  proc *a;
-  if (!trylock(&runq_lk))
-    return false;
-  LIST_FOREACH (a, &runq, rq) {
-    if (a == p)
-      goto found;
-  }
-  p = NULL;
-found:
-  if (!p || p->state == RUNNING) {
-    unlock(&runq_lk);
-    return false;
-  }
-  p->state = RUNNING;
-  ldelete(&p->rq);
-  unlock(&runq_lk);
-  return true;
+  proc *p = myproc();
+  proc *cp = allocproc();
+  void *top;
+  context *ctx;
+  trapframe *tf;
+  if (!cp)
+    return -1;
+  strcpy(cp->name, p->name);
+  top = pageaddress(cp->kstackpage) + PAGESIZE;
+  tf = (trapframe*)(top - sizeof(*tf));
+  ctx = (context*)(top - sizeof(context));
+  // ctx->rip = (ulong)forkret;
+  cp->sp = (ulong)ctx;
+  ready(cp);
+  return 0;
 }
 
 void
@@ -189,7 +207,8 @@ runloop:
   for (;;) {
     lock(&runq_lk);
     LIST_FOREACH (p, &runq, rq) {
-      goto found;
+      if (!p->cpu)
+        goto found;
     }
     unlock(&runq_lk);
     hlt();
@@ -200,17 +219,11 @@ found:
   cli();
   p->state = RUNNING;
   c->current = p;
-  p->prevcpu = c;
+  p->cpu = p->prevcpu = c;
   vmswitch(p);
   swtch(&c->sched, &p->sp);
-  c->current = NULL;
+  p->cpu = c->current = NULL;
   goto runloop;
-}
-
-void
-sched(void)
-{
-  ;
 }
 
 static int
@@ -220,7 +233,6 @@ init0(void *_)
   extern char _binary_uinit_start[];
   extern char _binary_uinit_end[];
   int isize = _binary_uinit_end - _binary_uinit_start;
-  printk("init0!\n");
   proc0 = myproc();
   proc0->vm = procvm();
   if (!proc0->vm)
@@ -246,6 +258,14 @@ procinit(void)
 {
   printk("spawn init\n");
   kspawn("init", init0, NULL);
+}
+
+void
+cpu0init(void)
+{
+  cpu0.id = 0;
+  cpu0.current = NULL;
+  lappend(&cpus, &cpu0.cpulist);
 }
 
 void

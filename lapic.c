@@ -51,7 +51,7 @@ lapicwr(u32 off, u32 val)
   ioread32(lapic, ID);
 }
 
-static void
+void
 lapiceoi(irq *_)
 {
   lapicwr(EOI, 0);
@@ -104,18 +104,18 @@ enlapictimer(void)
   u32 lvt;
   lvt = LVT_TIMER_PERIODIC;
   // lvt |= LVT_TIMER_INT_MASK;
-  lvt |= 0x40;    // periodic mode, vector is 0x40
+  lvt |= 0x20;    // periodic mode, vector is 0x40
   lapicwr(LVT_TIMER, lvt);
   lapicwr(TM_DIV, 0xb);
   lapicwr(TM_INIT, 10000000);
-  newirq(0x40, lapiceoi, lapictimer_handle);
+  newirq(0x20, lapiceoi, lapictimer_handle, NULL);
 }
 
 static void
 setspurious(void)
 {
   lapicwr(SPIV, 0x20);
-  newirq(0x20, lapiceoi, NULL);
+  newirq(0x40, lapiceoi, NULL, NULL);
 }
 
 void

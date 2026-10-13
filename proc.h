@@ -2,6 +2,7 @@
 #define _PROC_H
 
 #include <kernel.h>
+#include <asm.h>
 #include <list.h>
 #include <sys.h>
 
@@ -36,9 +37,12 @@ struct proc {
   list rq;
   pvm *vm;
   ulong sp;
+  cpu *cpu;
   cpu *prevcpu;
   int (*kf)(void *ka);
   void *ka;
+  uint lockdepth;
+  u64 lockflags;
 };
 
 void swtch(ulong *prev_rsp, ulong *next_rsp);

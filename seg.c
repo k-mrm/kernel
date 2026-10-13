@@ -6,8 +6,7 @@
 typedef struct gdtdesc gdtdesc;
 typedef struct tssdesc tssdesc;
 
-struct gdtdesc
-{
+struct gdtdesc {
   u16 limit_15_0;
   u16 base_15_0;
   u8 base_23_16;
@@ -23,8 +22,7 @@ struct gdtdesc
   u8 base_31_24;
 } PACKED;
 
-struct tssdesc
-{
+struct tssdesc {
   u16 limit_15_0;
   u16 base_15_0;
   u8 base_23_16;

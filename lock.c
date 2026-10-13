@@ -7,57 +7,83 @@
 bool
 trylock(spinlock *lk)
 {
-  ulong flags;
-  uint c;
-  flags = irqsave();
-  c = lapicid();
+  proc *p = myproc();
+  cpu *c;
+  u64 flags = irqsave();
+  c = mycpu();
   if (lk->holder == c)
     panic("recursive");
+  if (p) {
+    if (!p->lockdepth)
+      p->lockflags = flags;
+    p->lockdepth++;
+  }
   if (cmpxchg(&lk->lock, 0, 1) != 0) {
+    if (p)
+      p->lockdepth--;
     irqrestore(flags);
     return false;
   }
   lk->holder = c;
-  lk->flags = flags;
+  if (!p)
+    irqrestore(flags);
   return true;
 }
 
 uint
 locked(spinlock *lk)
 {
-  return lk->lock && lapicid() == lk->holder;
+  int l;
+  u64 flags;
+  flags = irqsave();
+  l = lk->lock && mycpu() == lk->holder;
+  irqrestore(flags);
+  return l;
 }
 
 void
 lock(spinlock *lk)
 {
-  ulong flags;
-  uint c;
-  flags = irqsave();
-  c = lapicid();
+  proc *p = myproc();
+  cpu *c;
+  u64 flags = irqsave();
+  c = mycpu();
   if (lk->holder == c)
     panic("recursive");
+  if (p) {
+    if (!p->lockdepth)
+      p->lockflags = flags;
+    p->lockdepth++;
+  }
   while (cmpxchg(&lk->lock, 0, 1) != 0)
     ;
   lk->holder = c;
-  lk->flags = flags;
+  if (!p)
+    irqrestore(flags);
 }
 
 void
 unlock(spinlock *lk)
 {
-  ulong flags;
-  flags = lk->flags;
-  lk->holder = -1;
+  proc *p;
+  u64 flags;
+  lk->holder = NULL;
   asm volatile ("" ::: "memory");
   lk->lock = 0;
-  irqrestore(flags);
+  p = myproc();
+  if (p) {
+    flags = p->lockflags;
+    if (!p->lockdepth)
+      panic("unlock");
+    p->lockdepth--;
+    if (!p->lockdepth)
+      irqrestore(flags);
+  }
 }
 
 void
 slockinit(spinlock *lk)
 {
   lk->lock = 0;
-  lk->flags = 0;
-  lk->holder = -1;
+  lk->holder = NULL;
 }

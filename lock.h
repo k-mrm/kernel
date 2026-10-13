@@ -7,10 +7,13 @@
 
 struct spinlock {
   uint lock;
-  ulong flags;
-  int holder;
+  cpu *holder;
 } ALIGNED(CACHELINE);
 
-#define SPINLOCK(_l)  spinlock _l = {0, 0, -1}
+#define SPINLOCK(_l)  spinlock _l = {0,NULL}
+
+struct mutex {
+  uint lock;
+} ALIGNED(CACHELINE);
 
 #endif

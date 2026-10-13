@@ -19,29 +19,29 @@
 #define DLAB 0x80
 
 static bool
-empty (void)
+empty(void)
 {
-  return inb (COM1 + LSR) & 0x20;
+  return inb(COM1 + LSR) & 0x20;
 }
 
 static bool
-coming (void)
+coming(void)
 {
-  return inb (COM1 + LSR) & 0x1;
+  return inb(COM1 + LSR) & 0x1;
 }
 
 void
-serial_putc (char c)
+serial_putc(char c)
 {
-  while (!empty ())
+  while (!empty())
     ;
-  outb (COM1 + DATA, c);
+  outb(COM1 + DATA, c);
 }
 
 int
-serial_getc (void)
+serial_getc(void)
 {
-  if (coming ())
+  if (coming())
     return inb(COM1 + DATA);
   else
     return -1;

@@ -7,6 +7,7 @@
 
 struct irq {
   int irqno;
+  void *data;
   void (*eoi)(irq*);
   int (*handle)(irq*);
 };

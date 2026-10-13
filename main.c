@@ -8,7 +8,6 @@ kmain(void)
 {
   loadidt();
   lapicinit();
-  cpuinit();
   seginit();
   schedule();
   panic("exit");
@@ -19,9 +18,12 @@ bspmain(void)
 {
   serial_init();
   trapinit();
+  cpu0init();
   pageinit1((ulong)va(1024*1024*1024));  // 1GiB
   kernelmap();
   kmallocinit();
+  ioapicinit();
+  ideinit();
   procinit();
   kmain();
 }
@@ -29,5 +31,5 @@ bspmain(void)
 void NORETURN
 apmain(void)
 {
-  ;
+  cpuinit();
 }

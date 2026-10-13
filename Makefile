@@ -19,9 +19,10 @@ MEMSZ = 512
 endif
 
 OBJS = entry.o main.o proc.o seg.o serial.o swtch.o trap.o traphandler.o printk.o
-OBJS += page.o vm.o lib.o lapic.o kmalloc.o lock.o
+OBJS += page.o vm.o lib.o lapic.o kmalloc.o lock.o block.o ide.o ioapic.o wait.o
+OBJS += syscall.o
 
-all: kernel.img
+all: kernel.img user.img
 
 %.o: %.c
 	@echo CC $@
@@ -50,6 +51,10 @@ kernel.bin: kernel.elf
 	@echo OBJCOPY $@
 	@$(OBJCOPY) -O binary $< $@
 
+user.img:
+	@echo IMG $@
+	@dd if=/dev/zero of=$@ bs=512 count=2048 status=none
+
 kernel.img: bootblock kernel.bin
 	@echo IMG $@
 	@dd if=/dev/zero of=$@ bs=512 count=10000 status=none
@@ -60,9 +65,9 @@ clean:
 	@echo CLEAN
 	$(RM) *.o *.d *.elf *.bin *.img bootblock .gdbinit
 
-QEMUOPTS = -nographic -drive file=kernel.img,index=0,media=disk,format=raw -smp $(NCPU) -m $(MEMSZ)
+QEMUOPTS = -nographic -drive file=kernel.img,index=0,media=disk,format=raw -drive file=user.img,index=1,media=disk,format=raw -smp $(NCPU) -m $(MEMSZ)
 
-qemu: kernel.img
+qemu: kernel.img user.img
 	$(QEMU) $(QEMUOPTS)
 
 qemu-kvm: kernel.img

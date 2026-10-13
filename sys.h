@@ -1,3 +1,6 @@
+#ifndef _SYS_H
+#define _SYS_H
+
 #include <kernel.h>
 
 typedef enum gatetype gatetype;
@@ -6,7 +9,6 @@ typedef struct trapframe trapframe;
 typedef struct tss tss;
 typedef struct e820_entry e820_entry;
 typedef struct page page;
-typedef struct irq irq;
 typedef struct list list;
 
 // serial.c
@@ -16,9 +18,14 @@ void serial_putc(char c);
 // seg.c
 void seginit(void);
 // trap.c
+typedef struct irq irq;
 void trapinit(void);
 void loadidt(void);
-void newirq(int irqno, void (*eoi)(irq*), int (*handle)(irq*));
+void newirq(int, void (*)(irq*), int (*)(irq*), void*);
+// lapic.c
+void lapicinit(void);
+uint lapicid(void);
+void lapiceoi(irq *);
 // printk.c
 int printk(const char *fmt, ...);
 void NORETURN panic(const char *fmt, ...);
@@ -26,6 +33,13 @@ void NORETURN panic(const char *fmt, ...);
 void pageinit1(ulong);
 page *allocpage(void);
 void freepage(page*);
+// lock.c
+typedef struct spinlock spinlock;
+bool trylock(spinlock*);
+void lock(spinlock*);
+void unlock(spinlock*);
+void slockinit(spinlock*);
+uint locked(spinlock*);
 // lib.c
 void *memcpy(void *dst, const void *src, ulong n);
 void *memmove(void *dst, const void *src, ulong n);
@@ -36,11 +50,16 @@ uint strlen(const char *s);
 char *strcpy(char *dst, const char *src);
 char *strchr(const char *s, int c);
 char *strtok(char *s1, const char *s2);
+// wait.c
+typedef struct waitpoint waitpoint;
+void waitinit(waitpoint*);
 // proc.c
 typedef enum procstate procstate;
 typedef struct proc proc;
 typedef struct context context;
 typedef struct cpu cpu;
+void sleep(waitpoint*, spinlock*);
+void wakeup(waitpoint*);
 void procinit(void);
 void cpuinit(void);
 void schedule(void);
@@ -51,13 +70,6 @@ typedef struct mobj mobj;
 void kmallocinit(void);
 void *kmalloc(uint);
 void kfree(void*);
-// lock.c
-typedef struct spinlock spinlock;
-bool trylock(spinlock*);
-void lock(spinlock*);
-void unlock(spinlock*);
-void slockinit(spinlock*);
-uint locked(spinlock*);
 // vm.c
 typedef struct pagetree pagetree;
 typedef struct segment segment;
@@ -70,3 +82,14 @@ void vmswitch(proc*);
 void vmsegload(segment*, ulong, page*);
 void vmseginit(segment*, ulong, ulong);
 int faultresume(ulong, int, int);
+// block.c
+typedef struct block block;
+block *getblock(char*);
+int bread();
+int bwrite();
+block *newblock(int (*)(block*, int, ulong, void*), void*);
+// ioapic.c
+int ioapicen(int);
+void ioapicinit(void);
+
+#endif

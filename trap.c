@@ -218,15 +218,16 @@ gpfault(trapframe *tf)
 }
 
 void
-newirq(int irqno, void (*eoi)(irq*), int (*handle)(irq*))
+newirq(int irqno, void (*eoi)(irq*), int (*handle)(irq*), void *data)
 {
-  irq *i;
+  irq *irq;
   if (irqno >= NR_INTERRUPT)
     return;
-  i = &irqa[irqno];
-  i->irqno = irqno;
-  i->eoi = eoi;
-  i->handle = handle;
+  irq = &irqa[irqno];
+  irq->irqno = irqno;
+  irq->eoi = eoi;
+  irq->handle = handle;
+  irq->data = data;
 }
 
 static int
@@ -257,8 +258,7 @@ trap(trapframe *tf)
       gpfault(tf);
       break;
     case 0x80:
-      // syscall (tf);
-      panic("syscall");
+      syscall(tf);
       break;
     default:
       err = irqhandle(tf);
