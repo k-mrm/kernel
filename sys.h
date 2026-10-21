@@ -25,31 +25,54 @@ void newirq(int, void (*)(irq*), int (*)(irq*), void*);
 // lapic.c
 void lapicinit(void);
 uint lapicid(void);
-void lapiceoi(irq *);
+void lapiceoi(irq*);
 // printk.c
-int printk(const char *fmt, ...);
-void NORETURN panic(const char *fmt, ...);
+int printk(const char*, ...);
+void NORETURN panic(const char*, ...);
 // page.c
 void pageinit1(ulong);
 page *allocpage(void);
 void freepage(page*);
 // lock.c
 typedef struct spinlock spinlock;
+typedef struct mutex mutex;
 bool trylock(spinlock*);
 void lock(spinlock*);
 void unlock(spinlock*);
 void slockinit(spinlock*);
 uint locked(spinlock*);
+void mlock(mutex*);
+void munlock(mutex*);
+void mtxinit(mutex*);
 // lib.c
 void *memcpy(void *dst, const void *src, ulong n);
 void *memmove(void *dst, const void *src, ulong n);
 void *memset(void *dst, int c, ulong n);
+int memcmp(const void *a, const void *b, uint n);
 int strcmp(const char *s1, const char *s2);
 int strncmp(const char *s1, const char *s2, ulong len);
 uint strlen(const char *s);
 char *strcpy(char *dst, const char *src);
 char *strchr(const char *s, int c);
 char *strtok(char *s1, const char *s2);
+// fs.c
+typedef struct superblock superblock;
+typedef struct inode inode;
+inode *path2inode(char*);
+int writei(inode*, void*, uint, uint);
+int readi(inode*, void*, uint, uint);
+void mountroot(void);
+inode *idup(inode*);
+void iput(inode*);
+inode *iget(superblock*, int);
+void isync(inode*);
+int bread(superblock*, ulong, void*);
+int bwrite(superblock*, ulong, void*);
+// ext2.c
+void ext2superinit(superblock*);
+inode *ext2lookup(inode*, char*);
+int ext2iget(inode*);
+void ext2sync(inode*);
 // wait.c
 typedef struct waitpoint waitpoint;
 void waitinit(waitpoint*);
@@ -83,12 +106,14 @@ void vmswitch(proc*);
 void vmsegload(segment*, ulong, page*);
 void vmseginit(segment*, ulong, ulong);
 int faultresume(ulong, int, int);
+bool validate(ulong addr, uint len, int wr);
+bool validstr(ulong addr, uint limit, int wr);
 // block.c
 typedef struct block block;
 block *getblock(char*);
-int bread();
-int bwrite();
-block *newblock(int (*)(block*, int, ulong, void*), void*);
+int __bread();
+int __bwrite();
+block *newblock(int (*)(block*, int, ulong, int, void*), void*);
 // ioapic.c
 int ioapicen(int);
 void ioapicinit(void);

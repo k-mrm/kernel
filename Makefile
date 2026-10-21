@@ -20,7 +20,7 @@ endif
 
 OBJS = entry.o main.o proc.o seg.o serial.o swtch.o trap.o traphandler.o printk.o
 OBJS += page.o vm.o lib.o lapic.o kmalloc.o lock.o block.o ide.o ioapic.o wait.o
-OBJS += syscall.o
+OBJS += syscall.o fs.o ext2.o
 
 all: kernel.img user.img
 
@@ -51,9 +51,10 @@ kernel.bin: kernel.elf
 	@echo OBJCOPY $@
 	@$(OBJCOPY) -O binary $< $@
 
-user.img:
+user.img: $(shell find rootfs -type f)
 	@echo IMG $@
-	@dd if=/dev/zero of=$@ bs=512 count=2048 status=none
+	@dd if=/dev/zero of=$@ bs=1k count=1440 status=none
+	@mkfs.ext2 -d rootfs $@
 
 kernel.img: bootblock kernel.bin
 	@echo IMG $@

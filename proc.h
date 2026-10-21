@@ -33,6 +33,7 @@ struct proc {
   procstate state;
   char name[16];
   page *kstackpage;
+  inode *cwd;
   list ptable;
   list rq;
   pvm *vm;

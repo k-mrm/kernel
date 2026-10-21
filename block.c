@@ -24,19 +24,19 @@ getblock(char *name)
 }
 
 int
-bread(block *b, ulong bno, void *buf)
+__bread(block *b, ulong sect, int n, void *buf)
 {
-  return b->bio(b, 0, bno, buf);
+  return b->bio(b, 0, sect, n, buf);
 }
 
 int
-bwrite(block *b, ulong bno, void *buf)
+__bwrite(block *b, ulong sect, int n, void *buf)
 {
-  return b->bio(b, 1, bno, buf);
+  return b->bio(b, 1, sect, n, buf);
 }
 
 block *
-newblock(int (*bio)(block*, int, ulong, void*), void *data)
+newblock(int (*bio)(block*, int, ulong, int, void*), void *data)
 {
   block *b = kmalloc(sizeof *b);
   if (!b)

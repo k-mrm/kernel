@@ -1,14 +1,14 @@
 #include <kernel.h>
 #include <sys.h>
 
-void *
-memcpy (void *dst, const void *src, ulong n)
+void*
+memcpy(void *dst, const void *src, ulong n)
 {
   return memmove (dst, src, n);
 }
 
-void *
-memmove (void *dst, const void *src, ulong n)
+void*
+memmove(void *dst, const void *src, ulong n)
 {
   char *d = dst;
   const char *s = src;
@@ -24,16 +24,16 @@ memmove (void *dst, const void *src, ulong n)
   return dst;
 }
 
-void *
-memset (void *dst, int c, ulong n) {
+void*
+memset(void *dst, int c, ulong n) {
   char *d = dst;
   while (n-- > 0)
     *d++ = c;
   return dst;
 }
 
-char *
-strcpy (char *dst, const char *src)
+char*
+strcpy(char *dst, const char *src)
 {
   char *r = dst;
   while ((*dst++ = *src++) != 0)
@@ -42,11 +42,23 @@ strcpy (char *dst, const char *src)
 }
 
 int
-strcmp (const char *s1, const char *s2)
+strcmp(const char *s1, const char *s2)
 {
   while (*s1 && *s1 == *s2) {
     s1++;
     s2++;
+  }
+  return *s1 - *s2;
+}
+
+int
+memcmp(const void *a, const void *b, uint n)
+{
+  const uchar *s1 = a; 
+  const uchar *s2 = b; 
+  while (*s1 == *s2 && n > 0) {
+    s1++; s2++;
+    n--;
   }
   return *s1 - *s2;
 }

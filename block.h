@@ -9,7 +9,7 @@ struct block {
   char *name;
   void *data;
   uint secsize;
-  int (*bio)(block*, int, ulong, void*);
+  int (*bio)(block*, int, ulong, int, void*);
   list blist;
 };
 

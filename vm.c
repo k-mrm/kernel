@@ -126,6 +126,37 @@ ptwalk(segment *seg, ulong off)
   return &(*ppt)->pages[(off >> 12) & 0x1ff];
 }
 
+bool
+validate(ulong addr, uint len, int wr)
+{
+  segment *seg;
+  if (len == 0)
+    return false;
+  for (;;) {
+    seg = vaseg(addr);
+    if (!seg || (!seg->w && wr))
+      return false;
+    if (addr + len > seg->end) {
+      len -= seg->end - addr;
+      addr = seg->end;
+    } else
+      break;
+  }
+  return true;
+}
+
+bool
+validstr(ulong addr, uint limit, int wr)
+{
+  for (ulong a = addr; a < addr + limit; a++) {
+    if (!validate(a, 1, wr))
+      return false;
+    if (*((char*)a) == '\0')
+      return true;
+  }
+  return false;
+}
+
 int
 faultresume(ulong addr, int wr, int user)
 {
@@ -134,11 +165,12 @@ faultresume(ulong addr, int wr, int user)
   ulong flags = 0;
   seg = vaseg(addr);
   if (!seg) {
-    if (user) {
-      // signal segfault
+    if (myproc()) {
+      // sigsegv
       return -1;
-    } else
-      return -1;
+    } else {
+      panic("kernel pf");
+    }
   }
   flags = (seg->w ? PTE_W : 0) |
           PTE_P |

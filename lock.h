@@ -10,10 +10,18 @@ struct spinlock {
   cpu *holder;
 } ALIGNED(CACHELINE);
 
+struct waitpoint {
+  spinlock lk;
+  proc *p;
+};
+
 #define SPINLOCK(_l)  spinlock _l = {0,NULL}
 
 struct mutex {
+  spinlock lk;
+  waitpoint wait;
   uint lock;
+  proc *holder;
 } ALIGNED(CACHELINE);
 
 #endif

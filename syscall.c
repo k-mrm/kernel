@@ -3,6 +3,11 @@
 #include <asm.h>
 #include <syscall.h>
 
+#define ARG0  (tf->rdi)
+#define ARG1  (tf->rsi)
+#define ARG2  (tf->rdx)
+#define ARG3  (tf->rcx)
+
 static ulong
 sysnull(trapframe *tf)
 {
@@ -12,11 +17,10 @@ sysnull(trapframe *tf)
 static ulong
 sysexec(trapframe *tf)
 {
-  char *buf = kmalloc(512);
-  bread(getblock("hdb"), 1, buf);
-  for (int i = 0; i < 32; i++)
-    printk("%d ", buf[i]);
-  panic("f");
+  if (!validstr(ARG0, 128, 0))
+    panic("exec");
+  panic("exec");
+  return 0;
 }
 
 static ulong

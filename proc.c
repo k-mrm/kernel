@@ -258,6 +258,7 @@ init0(void *_)
   vmsegload(sstack(proc0->vm), USTACKTOP - 0x1000, sp);
   memcpy(pageaddress(tp), _binary_uinit_start, isize);
   vmswitch(proc0);
+  mountroot();
   uenter(USTACKTOP);
   panic("init0 exit");
 }

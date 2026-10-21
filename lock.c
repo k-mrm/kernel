@@ -82,6 +82,36 @@ unlock(spinlock *lk)
 }
 
 void
+mlock(mutex *m)
+{
+  lock(&m->lk);
+  while (m->lock)
+    sleep(&m->wait, &m->lk);
+  m->lock = 1;
+  m->holder = myproc();
+  unlock(&m->lk);
+}
+
+void
+munlock(mutex *m)
+{
+  lock(&m->lk);
+  m->lock = 0;
+  m->holder = NULL;
+  wakeup(&m->wait);
+  unlock(&m->lk);
+}
+
+void
+mtxinit(mutex *mtx)
+{
+  slockinit(&mtx->lk);
+  waitinit(&mtx->wait);
+  mtx->lock = 0;
+  mtx->holder = NULL;
+}
+
+void
 slockinit(spinlock *lk)
 {
   lk->lock = 0;

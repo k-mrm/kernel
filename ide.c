@@ -28,6 +28,8 @@ typedef struct idechan idechan;
 
 #define CMD_READ  0x20
 #define CMD_WRITE 0x30
+#define CMD_RDMUL 0xc4
+#define CMD_WRMUL 0xc5
 
 struct idedisk {
   idechan *chan;
@@ -92,27 +94,27 @@ ideintr(irq *irq)
 }
 
 static int
-idebio(block *b, int write, ulong bno, void *buf)
+idebio(block *b, int write, ulong sect, int n, void *buf)
 {
   idedisk *d = b->data;
   idechan *c = d->chan;
   lock(&c->lk);
   diskwait(d);
   outb(cctl(c), 0);
-  outb(cnsect(c), 1);
-  outb(clbal(c), bno & 0xff);
-  outb(clbam(c), (bno >> 8) & 0xff);
-  outb(clbah(c), (bno >> 16) & 0xff);
+  outb(cnsect(c), n);
+  outb(clbal(c), sect & 0xff);
+  outb(clbam(c), (sect >> 8) & 0xff);
+  outb(clbah(c), (sect >> 16) & 0xff);
   outb(cdevice(c), 0xe0 | 
                    (d->master ? 0 : 0x10) |
-                   ((bno>>24) & 0x0f));
+                   ((sect>>24) & 0x0f));
   if (write) {
-    outb(cstatus(c), CMD_WRITE);
-    outsw(cdata(c), buf, 512/2);
+    outb(cstatus(c), n > 1 ? CMD_WRMUL : CMD_WRITE);
+    outsw(cdata(c), buf, 512*n/2);
   } else {
-    outb(cstatus(c), CMD_READ);
+    outb(cstatus(c), n > 1 ? CMD_RDMUL : CMD_READ);
     sleep(&c->wait, &c->lk);
-    insw(cdata(c), buf, 512/2);
+    insw(cdata(c), buf, 512*n/2);
   }
   unlock(&c->lk);
   return 0;

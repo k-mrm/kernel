@@ -5,9 +5,4 @@
 #include <proc.h>
 #include <lock.h>
 
-struct waitpoint {
-  spinlock lk;
-  proc *p;
-};
-
 #endif
