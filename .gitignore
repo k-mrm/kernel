@@ -57,6 +57,8 @@ dkms.conf
 *.img
 *.swp
 *.iso
+*.bin
 
 .clang-format
 uinit
+bootblock

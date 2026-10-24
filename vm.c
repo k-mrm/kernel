@@ -5,6 +5,8 @@
 #include <page.h>
 #include <proc.h>
 #include <vm.h>
+#include <elf.h>
+#include <fs.h>
 
 static ulong *kcr3;
 static ulong kcr3pa;
@@ -98,7 +100,10 @@ vmmappage(ulong virt, ulong phys, ulong flags)
 static segment *
 vaseg(ulong virt)
 {
-  pvm *vm = myproc()->vm;
+  pvm *vm;
+  if (!myproc())
+    return NULL;
+  vm = myproc()->vm;
   segment *seg;
   for (seg = vm->seg; seg < vm->seg + 3; seg++)
     if (seg->base <= virt && virt < seg->end)
@@ -158,16 +163,23 @@ validstr(ulong addr, uint limit, int wr)
 }
 
 int
-faultresume(ulong addr, int wr, int user)
+faultresume(trapframe *tf, ulong addr, int wr, int user)
 {
   segment *seg;
   page *p, **pp;
   ulong flags = 0;
+  int ret = 0;
+  if (user)
+    sti();
+  else if (tf->rflags & EFLAGS_IF)
+    sti();
   seg = vaseg(addr);
   if (!seg) {
     if (myproc()) {
       // sigsegv
-      return -1;
+      panic("sigsegv %p", addr);
+      ret = -1;
+      goto end;
     } else {
       panic("kernel pf");
     }
@@ -176,16 +188,53 @@ faultresume(ulong addr, int wr, int user)
           PTE_P |
           PTE_U;
   pp = ptwalk(seg, addr - seg->base);
-  if (!pp)
-    return -1;
+  if (!pp) {
+    panic("ppwalk");
+    ret = -1;
+    goto end;
+  }
   if (!*pp) {
     p = allocpage();
-    if (!p)
-      return -1;
+    if (!p) {
+      ret = -1;
+      panic("nopage");
+      goto end;
+    }
     *pp = p;
   } 
+  if (seg->ino) {
+    mlock(&seg->ino->mtx);
+    if (readi(seg->ino, pageaddress(*pp), seg->offset, PAGESIZE) < 0) {
+      munlock(&seg->ino->mtx);
+      ret = -1;
+      panic("readi");
+      goto end;
+    }
+    munlock(&seg->ino->mtx);
+  }
   vmmappage(PAGEALIGNDOWN(addr), pa(pageaddress(*pp)), flags);
-  return 0;
+end:
+  cli();
+  return ret;
+}
+
+void*
+vmap(inode *ino, ulong vaddr, ulong sz, int perm, uint offset)
+{
+  segment *seg;
+  seg = vaseg(vaddr);
+  if (!seg) {
+    panic("todo");
+  }
+  if (seg != vaseg(vaddr+sz))
+    return NULL;
+  if (!seg->ino) {
+    seg->ino = idup(ino);
+    seg->offset = offset;
+  } else if (seg->ino != ino) {
+    return NULL;
+  }
+  return (void*)vaddr;
 }
 
 void
@@ -196,7 +245,6 @@ vmsegload(segment *seg, ulong uv, page *p)
   if (uv < seg->base || seg->end <= uv)
     return;
   off = uv - seg->base;
-  printk("ptwalk %p %p\n", uv, off);
   pp = ptwalk(seg, off);
   if (!pp)
     return;

@@ -17,9 +17,11 @@ sysnull(trapframe *tf)
 static ulong
 sysexec(trapframe *tf)
 {
+  char name[128];
   if (!validstr(ARG0, 128, 0))
-    panic("exec");
-  panic("exec");
+    return -1;
+  strcpy(name, (const char*)ARG0);
+  exec(name);
   return 0;
 }
 
@@ -32,6 +34,8 @@ sysread(trapframe *tf)
 static ulong
 syswrite(trapframe *tf)
 {
+  printk("syswrite enter\n");
+  panic("wr %s\n", (const char*)ARG1);
   return (ulong)-1;
 }
 

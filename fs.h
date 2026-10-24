@@ -40,6 +40,11 @@
 #define S_ISCHR(_m)     (((_m) & S_IFMT) == S_IFCHR)
 #define S_ISFIFO(_m)    (((_m) & S_IFMT) == S_IFIFO)
 
+#define O_READ   0
+#define O_WRITE  1
+#define O_RDWR   2
+#define O_EXEC   3
+
 struct superblock {
   block *dev;
   char name[16];

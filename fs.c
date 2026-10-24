@@ -73,19 +73,22 @@ void
 iput(inode *ino)
 {
   superblock *sb = ino->super;
+  int freei = 0;
+  lock(&sb->lk);
   lock(&ino->lk);
   if (ino->ref == 0)
     panic("iput");
   ino->ref--;
   if (ino->ref == 0) {
-    // TODO: delete ino
-    unlock(&ino->lk);
-    lock(&sb->lk);
     ldelete(&ino->e);
-    unlock(&sb->lk);
+    freei = 1;
+  }
+  unlock(&ino->lk);
+  unlock(&sb->lk);
+  if (freei) {
+    // TODO: free and update ino
     kfree(ino);
-  } else 
-    unlock(&ino->lk);
+  }
 }
 
 inode *
@@ -157,7 +160,6 @@ pathname(char *path, char *name, int *err)
   return path;
 }
 
-// locked inode*
 static inode*
 traverse(inode *pi, char *path, char *name)
 {
@@ -165,7 +167,6 @@ traverse(inode *pi, char *path, char *name)
   inode *ino;
   memset(name, 0, 256);
   while ((path = pathname(path, name, &err)) != NULL) {
-    printk("tra n %s p=%s\n", name, path);
     mlock(&pi->mtx);
     if (!S_ISDIR(pi->mode))
       goto fail;
@@ -202,4 +203,33 @@ path2inode(char *path)
     ino = idup(p->cwd);
   }
   return traverse(ino, path, name);
+}
+
+inode*
+namei(char *path, int mode)
+{
+  inode *ino;
+  ino = path2inode(path);
+  if (!ino)
+    return NULL;
+  switch (mode & 3) {
+    case O_READ:
+      if (ino->mode & S_IRUSR)
+        return ino;
+      break;
+    case O_WRITE:
+      if (ino->mode & S_IWUSR)
+        return ino;
+      break;
+    case O_RDWR:
+      if ((ino->mode & (S_IWUSR|S_IRUSR)) == (S_IWUSR|S_IRUSR))
+        return ino;
+      break;
+    case O_EXEC:
+      if ((ino->mode & (S_IXUSR|S_IRUSR)) == (S_IXUSR|S_IRUSR))
+        return ino;
+      break;
+    default: panic("namei");
+  }
+  return NULL;
 }

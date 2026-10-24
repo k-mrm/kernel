@@ -68,6 +68,7 @@ inode *iget(superblock*, int);
 void isync(inode*);
 int bread(superblock*, ulong, void*);
 int bwrite(superblock*, ulong, void*);
+inode *namei(char*, int);
 // ext2.c
 void ext2superinit(superblock*);
 inode *ext2lookup(inode*, char*);
@@ -89,6 +90,7 @@ void cpuinit(void);
 void schedule(void);
 cpu *mycpu(void);
 proc *myproc(void);
+int exec(char*);
 // kmalloc.c
 typedef struct mobj mobj;
 void kmallocinit(void);
@@ -102,10 +104,11 @@ void kernelmap(void);
 void *iomap(ulong base, ulong size);
 void segload(segment*, page*);
 pvm *procvm(void);
+void *vmap(inode*, ulong, ulong, int, uint);
 void vmswitch(proc*);
 void vmsegload(segment*, ulong, page*);
 void vmseginit(segment*, ulong, ulong);
-int faultresume(ulong, int, int);
+int faultresume(trapframe*, ulong, int, int);
 bool validate(ulong addr, uint len, int wr);
 bool validstr(ulong addr, uint limit, int wr);
 // block.c

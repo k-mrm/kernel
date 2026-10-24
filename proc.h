@@ -42,6 +42,7 @@ struct proc {
   cpu *prevcpu;
   int (*kf)(void *ka);
   void *ka;
+  trapframe *tf;
   uint lockdepth;
   u64 lockflags;
 };

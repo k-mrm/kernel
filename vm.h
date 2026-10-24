@@ -14,6 +14,8 @@ struct segment {
   ulong base, end;
   pagetree *pt[64]; // 2MiB * 64 = 128 MiB
   spinlock lk;
+  inode *ino;
+  uint offset;
   bool r: 1;
   bool w: 1;
   bool x: 1;
@@ -38,5 +40,9 @@ sstack(pvm *vm)
 }
 
 #define USTACKTOP     0x7ffffff000
+
+#define VM_READ   1
+#define VM_WRITE  2
+#define VM_EXEC   4
 
 #endif

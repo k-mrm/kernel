@@ -6,6 +6,8 @@
 #include <lock.h>
 #include <vm.h>
 #include <wait.h>
+#include <elf.h>
+#include <fs.h>
 
 static LIST_HEAD(proctable);
 static SPINLOCK(proctable_lk);
@@ -185,6 +187,60 @@ freeproc(proc *p)
 }
 
 int
+exec(char *path)
+{
+  proc *p = myproc();
+  page *sp;
+  inode *ino;
+  pvm *vm = procvm();
+  pvm *old = p->vm;
+  ehdr eh;
+  phdr ph;
+  ulong phoff;
+  ino = namei(path, O_EXEC);
+  if (!ino)
+    return -1;
+  sp = allocpage();
+  if (!sp)
+    return -1;
+  p->vm = vm;
+  vmseginit(stext(p->vm), 0x1000, 0x1000);
+  vmseginit(sstack(p->vm), USTACKTOP - 0x1000, 0x1000);
+  vmsegload(sstack(p->vm), USTACKTOP - 0x1000, sp);
+  mlock(&ino->mtx);
+  if (readi(ino, &eh, 0, sizeof eh) != sizeof eh)
+    goto err;
+  if (!iself(&eh))
+    goto err;
+  if (eh.e_type != ET_EXEC)
+    goto err;
+  phoff = eh.e_phoff;
+  for (int i = 0; i < eh.e_phnum; i++, phoff += sizeof ph) {
+    if (readi(ino, &ph, phoff, sizeof ph) != sizeof ph)
+      goto err;
+    if (ph.p_type != PT_LOAD)
+      continue;
+    if (PAGEOFFSET(ph.p_vaddr) != PAGEOFFSET(ph.p_offset))
+      goto err;
+    if (ph.p_filesz > ph.p_memsz)
+      goto err;
+    if (!vmap(ino, PAGEALIGNDOWN(ph.p_vaddr), ph.p_filesz,
+              VM_READ|VM_EXEC, PAGEALIGNDOWN(ph.p_offset)))
+      goto err;
+  }
+  munlock(&ino->mtx);
+  p->tf->rip = eh.e_entry;
+  p->tf->rsp = USTACKTOP;
+  vmswitch(p);
+  return 0;
+err:
+  panic("torima");
+  munlock(&ino->mtx);
+  iput(ino);
+  return -1;
+}
+
+int
 fork(void)
 {
   proc *p = myproc();
@@ -259,6 +315,7 @@ init0(void *_)
   memcpy(pageaddress(tp), _binary_uinit_start, isize);
   vmswitch(proc0);
   mountroot();
+  proc0->cwd = path2inode("/");
   uenter(USTACKTOP);
   panic("init0 exit");
 }

@@ -51,7 +51,18 @@ kernel.bin: kernel.elf
 	@echo OBJCOPY $@
 	@$(OBJCOPY) -O binary $< $@
 
-user.img: $(shell find rootfs -type f)
+USR_SRCS  := $(wildcard usr/*.c)
+USR_PROGS := $(USR_SRCS:usr/%.c=rootfs/%)
+USR_CFLAGS = -Wall -Og -g -ffreestanding -nostdinc -nostdlib -nostartfiles -Iusr
+
+rootfs/%: usr/%.c usr/syscall.S usr/user.ld usr/user.h
+	@echo CC $@
+	@$(CC) $(USR_CFLAGS) -c $< -o $(<:.c=.o)
+	@$(CC) $(USR_CFLAGS) -c usr/syscall.S -o usr/syscall.o
+	@$(LD) -nostdlib -T usr/user.ld -o $@ $(<:.c=.o) usr/syscall.o
+	@rm -f $(<:.c=.o) usr/syscall.o
+
+user.img: $(USR_PROGS) $(shell find rootfs -type f)
 	@echo IMG $@
 	@dd if=/dev/zero of=$@ bs=1k count=1440 status=none
 	@mkfs.ext2 -d rootfs $@

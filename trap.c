@@ -2,6 +2,7 @@
 #include <asm.h>
 #include <sys.h>
 #include <irq.h>
+#include <proc.h>
 
 static irq irqa[NR_INTERRUPT] = {0};
 gatedesc idt[NR_INTERRUPT];
@@ -178,7 +179,7 @@ loadidt(void)
 }
 
 static inline void
-setgate (gatedesc *desc, ulong offset, u16 sel, gatetype type, u8 dpl)
+setgate(gatedesc *desc, ulong offset, u16 sel, gatetype type, u8 dpl)
 {
   desc->offset_0_15 = (u16)offset;
   desc->sel = sel;
@@ -206,7 +207,7 @@ pagefault(trapframe *tf)
 {
   int err;
   ulong faultaddr = rdcr2();
-  err = faultresume(faultaddr, tf->errcode & 2, FROMUSER(tf));
+  err = faultresume(tf, faultaddr, tf->errcode & 2, FROMUSER(tf));
   if (err < 0)
     panic("kernel pagefault %p", faultaddr);
 }
@@ -258,6 +259,8 @@ trap(trapframe *tf)
       gpfault(tf);
       break;
     case 0x80:
+      if (myproc())
+        myproc()->tf = tf;
       syscall(tf);
       break;
     default:
