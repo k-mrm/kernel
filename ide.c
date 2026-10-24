@@ -85,7 +85,6 @@ static int
 ideintr(irq *irq)
 {
   idechan *c = irq->data;
-  printk("ideintr\n");
   lock(&c->lk);
   inb(cstatus(c));
   wakeup(&c->wait);

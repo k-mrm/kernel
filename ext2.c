@@ -366,7 +366,6 @@ ext2lookup(inode *pi, char *name)
     }
     bread(sb, bno, tmp);
     de = tmp + (off % sb->bsize);
-    printk("traverse %s %d %d %d\n", de->name, de->inode, de->rec_len, pi->size);
     if (de->inode == 0 ||
         strlen(name) != de->name_len ||
         memcmp(name, de->name, de->name_len)) {

@@ -229,9 +229,11 @@ exec(char *path)
       goto err;
   }
   munlock(&ino->mtx);
+  iput(ino);
   p->tf->rip = eh.e_entry;
   p->tf->rsp = USTACKTOP;
   vmswitch(p);
+  // freevm(old);
   return 0;
 err:
   panic("torima");
