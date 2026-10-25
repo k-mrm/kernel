@@ -5,6 +5,8 @@
 
 static superblock *rootsuper;
 
+static void __iput(inode*);
+
 int
 bread(superblock *sb, ulong bno, void *buf)
 {
@@ -21,84 +23,119 @@ bwrite(superblock *sb, ulong bno, void *buf)
   return __bwrite(sb->dev, sect, nsect, buf);
 }
 
-static inode *
-ialloc(superblock *sb, int inum)
-{
-  inode *ino;
-  ino = kmalloc(sizeof *ino);
-  if (!ino)
-    return NULL;
-  slockinit(&ino->lk);
-  mtxinit(&ino->mtx);
-  ino->super = sb;
-  ino->inum = inum;
-  ino->ref = 1;
-  if (ext2iget(ino) < 0)
-    goto fail;
-  lock(&sb->lk);
-  lappend(&sb->itable, &ino->e);
-  unlock(&sb->lk);
-  return ino;
-fail:
-  kfree(ino);
-  return NULL;
-}
-
 void
 isync(inode *ino)
 {
   ;
 }
 
+// locked sb
+static inode*
+findi(superblock *sb, int inum)
+{
+  inode *ino;
+retry:
+  LIST_FOREACH (ino, &sb->itable, e) {
+    if (ino->inum == inum) {
+      if (ino->free) {
+        sleep(&sb->freewait, &sb->lk);
+        goto retry;
+      }
+      if (ino->ref == 0 || ino->err)
+        panic("findi");
+      ino->ref++;
+      return ino;
+    }
+  }
+  return NULL;
+}
+
 inode *
 iget(superblock *sb, int inum)
 {
   inode *ino;
+  int err = 0;
   lock(&sb->lk);
-  LIST_FOREACH (ino, &sb->itable, e) {
-    lock(&ino->lk);
-    if (ino->inum == inum) {
-      ino->ref++;
-      unlock(&ino->lk);
-      unlock(&sb->lk);
-      return ino;
+retry:
+  ino = findi(sb, inum);
+  if (ino) {
+    while (ino->new)
+      sleep(&sb->wait, &sb->lk);
+    if (ino->err) {
+      __iput(ino);
+      goto retry;
     }
-    unlock(&ino->lk);
+    unlock(&sb->lk);
+    return ino;
   }
+  ino = kmalloc(sizeof *ino);
+  if (!ino) {
+    unlock(&sb->lk);
+    return NULL;
+  }
+  mtxinit(&ino->mtx);
+  ino->super = sb;
+  ino->inum = inum;
+  ino->ref = 1;
+  ino->new = 1;
+  ino->free = 0;
+  lappend(&sb->itable, &ino->e);
   unlock(&sb->lk);
-  return ialloc(sb, inum);
+  if (ext2iget(ino) < 0)
+    err = 1;
+  lock(&sb->lk);
+  ino->new = 0;
+  ino->err = err;
+  if (err) {
+    ldelete(&ino->e);
+    __iput(ino);
+  }
+  wakeup(&sb->wait);
+  unlock(&sb->lk);
+  return err ? NULL : ino;
+}
+
+static void
+__iput(inode *ino)
+{
+  superblock *sb = ino->super;
+  int err = ino->err;
+  if (ino->ref == 0)
+    panic("iput");
+  if (--ino->ref > 0)
+    return;
+  ino->free = 1;
+  unlock(&sb->lk);
+  if (!err) {
+    // TODO: free and update ino
+    ;
+  }
+  lock(&sb->lk);
+  if (!err)
+    ldelete(&ino->e);
+  kfree(ino);
+  wakeup(&sb->freewait);
 }
 
 void
 iput(inode *ino)
 {
   superblock *sb = ino->super;
-  int freei = 0;
   lock(&sb->lk);
-  lock(&ino->lk);
-  if (ino->ref == 0)
-    panic("iput");
-  ino->ref--;
-  if (ino->ref == 0) {
-    ldelete(&ino->e);
-    freei = 1;
-  }
-  unlock(&ino->lk);
+  __iput(ino);
   unlock(&sb->lk);
-  if (freei) {
-    // TODO: free and update ino
-    kfree(ino);
-  }
 }
 
 inode *
 idup(inode *ino)
 {
+  superblock *sb;
   if (!ino)
     panic("idup");
-  lock(&ino->lk);
+  sb = ino->super;
+  lock(&sb->lk);
   ino->ref++;
-  unlock(&ino->lk);
+  unlock(&sb->lk);
   return ino;
 }
 
@@ -115,6 +152,8 @@ mountroot(void)
   rootsuper->dev = rootimg;
   linit(&rootsuper->itable);
   slockinit(&rootsuper->lk);
+  waitinit(&rootsuper->wait);
+  waitinit(&rootsuper->freewait);
   ext2superinit(rootsuper);
 }
 

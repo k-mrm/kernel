@@ -49,6 +49,8 @@ struct superblock {
   block *dev;
   char name[16];
   list itable;
+  waitpoint wait;
+  waitpoint freewait;
   spinlock lk;
   inode *rooti;
   void *fssuper;
@@ -56,7 +58,6 @@ struct superblock {
 };
 
 struct inode {
-  spinlock lk;
   superblock *super;
   mutex mtx;
   list e;
@@ -66,6 +67,9 @@ struct inode {
   u32 size;
   int inum;
   int ref;
+  int new;
+  int err;
+  int free;
   void *data;
   int (*readi)(inode*, void*, uint, uint);
   int (*writei)(inode*, void*, uint, uint);
