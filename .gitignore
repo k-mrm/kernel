@@ -58,6 +58,7 @@ dkms.conf
 *.swp
 *.iso
 *.bin
+*.swo
 
 .clang-format
 uinit
