@@ -5,6 +5,7 @@
 #include <asm.h>
 #include <list.h>
 #include <sys.h>
+#include <lock.h>
 
 enum procstate {
   DEAD,
@@ -40,6 +41,8 @@ struct proc {
   ulong sp;
   cpu *cpu;
   cpu *prevcpu;
+  proc *parent;
+  waitpoint wait;
   int (*kf)(void *ka);
   void *ka;
   trapframe *tf;

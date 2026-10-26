@@ -12,12 +12,17 @@ static ulong *kcr3;
 static ulong kcr3pa;
 
 static ulong *
-pagewalk(ulong *pgt, ulong virt, bool alloc)
+pagewalk(pvm *vm, ulong virt, bool alloc)
 {
+  ulong *pgt;
   ulong *pte;
   page *p;
   uint lvl;
   ulong pgtpa;
+  if (vm)
+    pgt = vm->cr3;
+  else
+    pgt = kcr3;
   for (lvl = 4; lvl > 1; lvl--) {
     pte = &pgt[PIDX(lvl, virt)];
     if (*pte & PTE_P) {
@@ -27,6 +32,8 @@ pagewalk(ulong *pgt, ulong virt, bool alloc)
       p = allocpage();
       if (!p)
         return NULL;
+      if (vm)
+        lappend(&vm->pgtp, &p->e);
       pgt = pageaddress(p);
       pgtpa = pa(pgt);
       *pte = (pgtpa & PTE_PA_MASK) | PTE_P | PTE_W | PTE_U;
@@ -37,13 +44,13 @@ pagewalk(ulong *pgt, ulong virt, bool alloc)
 }
 
 static void
-mappages(ulong *pgt, ulong virt, ulong phys, ulong sz, ulong flags)
+mappages(pvm *vm, ulong virt, ulong phys, ulong sz, ulong flags)
 {
   ulong *pte;
   if (!PAGEALIGNED(virt) || !PAGEALIGNED(phys) || !PAGEALIGNED(sz))
     return;
   for (ulong p = 0; p < sz; p += PAGESIZE, virt += PAGESIZE, phys += PAGESIZE) {
-    pte = pagewalk(pgt, virt, true);
+    pte = pagewalk(vm, virt, true);
     if (!pte)
       panic("mappages");
     *pte = (phys & PTE_PA_MASK) | flags;
@@ -55,7 +62,7 @@ iomap(ulong base, ulong size)
 {
   void *virt;
   virt = va(base);
-  mappages(kcr3, (ulong)virt, base, size, PTE_P | PTE_W | PTE_PWT | PTE_PCD);
+  mappages(NULL, (ulong)virt, base, size, PTE_P | PTE_W | PTE_PWT | PTE_PCD);
   return virt;
 }
 
@@ -84,7 +91,7 @@ kernelmap(void)
         flags |= 0;
       else
         flags |= PTE_W;
-      mappages(kcr3, v, p, PAGESIZE, flags);
+      mappages(NULL, v, p, PAGESIZE, flags);
     }
   }
   // switch world
@@ -94,20 +101,22 @@ kernelmap(void)
 static void
 vmmappage(ulong virt, ulong phys, ulong flags)
 {
-  mappages(myproc()->vm->cr3, virt, phys, PAGESIZE, flags);
+  mappages(myproc()->vm, virt, phys, PAGESIZE, flags);
 }
 
 static segment *
 vaseg(ulong virt)
 {
   pvm *vm;
+  segment *seg;
   if (!myproc())
     return NULL;
   vm = myproc()->vm;
-  segment *seg;
-  for (seg = vm->seg; seg < vm->seg + 3; seg++)
-    if (seg->base <= virt && virt < seg->end)
+  for (int i = 0; i < 3; i++) {
+    seg = vm->seg[i];
+    if (seg && seg->base <= virt && virt < seg->end)
       return seg;
+  }
   return NULL;
 }
 
@@ -177,7 +186,7 @@ faultresume(trapframe *tf, ulong addr, int wr, int user)
   if (!seg) {
     if (myproc()) {
       // sigsegv
-      panic("sigsegv %p", addr);
+      panic("%s: sigsegv %p", myproc()->name, addr);
       ret = -1;
       goto end;
     } else {
@@ -189,7 +198,6 @@ faultresume(trapframe *tf, ulong addr, int wr, int user)
           PTE_U;
   pp = ptwalk(seg, addr - seg->base);
   if (!pp) {
-    panic("ppwalk");
     ret = -1;
     goto end;
   }
@@ -197,7 +205,6 @@ faultresume(trapframe *tf, ulong addr, int wr, int user)
     p = allocpage();
     if (!p) {
       ret = -1;
-      panic("nopage");
       goto end;
     }
     *pp = p;
@@ -207,7 +214,6 @@ faultresume(trapframe *tf, ulong addr, int wr, int user)
     if (readi(seg->ino, pageaddress(*pp), seg->offset, PAGESIZE) < 0) {
       munlock(&seg->ino->mtx);
       ret = -1;
-      panic("readi");
       goto end;
     }
     munlock(&seg->ino->mtx);
@@ -218,15 +224,41 @@ end:
   return ret;
 }
 
+static segment*
+allocseg(void)
+{
+  segment *seg;
+  seg = kmalloc(sizeof *seg);
+  slockinit(&seg->lk);
+  seg->ref = 1;
+  return seg;
+}
+
+static segment*
+newseg(pvm *vm)
+{
+  for (int i = 0; i < NSEG; i++) {
+    if (!vm->seg[i])
+      return vm->seg[i] = allocseg();
+  }
+  panic("fullseg");
+}
+
 void*
 vmap(inode *ino, ulong vaddr, ulong sz, int perm, uint offset)
 {
   segment *seg;
+  pvm *vm = myproc()->vm;
   seg = vaseg(vaddr);
   if (!seg) {
-    panic("todo");
+    seg = newseg(vm);
+    seg->r = perm & VM_READ;
+    seg->w = perm & VM_WRITE;
+    seg->x = perm & VM_EXEC;
+    seg->base = vaddr;
+    seg->end = vaddr + PAGEALIGN(sz);
   }
-  if (seg != vaseg(vaddr+sz))
+  if (seg != vaseg(vaddr+sz-1))
     return NULL;
   if (!seg->ino) {
     seg->ino = idup(ino);
@@ -238,11 +270,13 @@ vmap(inode *ino, ulong vaddr, ulong sz, int perm, uint offset)
 }
 
 void
-vmsegload(segment *seg, ulong uv, page *p)
+vmload(ulong uv, page *p)
 {
+  segment *seg;
   ulong off;
   page **pp;
-  if (uv < seg->base || seg->end <= uv)
+  seg = vaseg(uv);
+  if (!seg)
     return;
   off = uv - seg->base;
   pp = ptwalk(seg, off);
@@ -251,16 +285,102 @@ vmsegload(segment *seg, ulong uv, page *p)
   *pp = p;
 }
 
-void
-vmseginit(segment *seg, ulong base, ulong size)
+static bool
+segreadonly(segment *seg)
 {
-  if (!PAGEALIGNED(base) || !PAGEALIGNED(size))
-    panic("vmseginit");
-  seg->base = base;
-  seg->end = base + size;
+  return seg->r && !seg->w;
 }
 
-pvm *
+void
+vmtextinit(ulong vaddr, ulong size)
+{
+  segment *seg;
+  pvm *vm;
+  if (!PAGEALIGNED(vaddr) || !PAGEALIGNED(size))
+    panic("align");
+  vm = myproc()->vm;
+  seg = newseg(vm);
+  seg->base = vaddr;
+  seg->end = vaddr + size;
+  seg->r = 1; seg->w = 0; seg->x = 1;
+}
+
+void
+vmstackinit(ulong vaddr, ulong size)
+{
+  segment *seg;
+  pvm *vm;
+  if (!PAGEALIGNED(vaddr) || !PAGEALIGNED(size))
+    panic("align");
+  vm = myproc()->vm;
+  seg = newseg(vm);
+  seg->base = vaddr;
+  seg->end = vaddr + size;
+  seg->r = 1; seg->w = 1; seg->x = 0;
+  seg->stack = 1;
+}
+
+static segment*
+segdup(segment *seg)
+{
+  segment *nseg;
+  if (!seg)
+    return NULL;
+  if (segreadonly(seg) || seg->share) {
+    seg->ref++;
+    return seg;
+  } else if (seg->stack) {
+    nseg = allocseg();
+    nseg->base = seg->base;
+    nseg->end = seg->end;
+    nseg->r = 1; nseg->w = 1; nseg->x = 0;
+    nseg->stack = 1;
+    return nseg;
+  } else if (seg->w) {
+    nseg = allocseg();
+    nseg->base = seg->base;
+    nseg->end = seg->end;
+    nseg->r = seg->r; nseg->w = seg->w; nseg->x = seg->x;
+    if (seg->ino) {
+      nseg->ino = idup(seg->ino);
+      nseg->offset = seg->offset;
+    }
+    return nseg;
+  }
+  return NULL;
+}
+
+static void
+invmap(void)
+{
+  pvm *vm = myproc()->vm;
+  page *p, *tp;
+  ulong flags;
+  flags = irqsave();
+  memset(vm->cr3, 0, PAGESIZE);
+  memcpy(vm->cr3, kcr3, PAGESIZE);
+  LIST_FOREACH_SAFE (p, tp, &vm->pgtp, e) {
+    ldelete(&p->e);
+    freepage(p);
+  }
+  irqrestore(flags);
+}
+
+pvm*
+vmdup(void)
+{
+  pvm *old = myproc()->vm;
+  pvm *vm;
+  vm = procvm();
+  if (!vm)
+    return NULL;
+  for (int i = 0; i < NSEG; i++)
+    vm->seg[i] = segdup(old->seg[i]);
+  invmap();
+  return vm;
+}
+
+pvm*
 procvm(void)
 {
   pvm *vm;
@@ -272,10 +392,7 @@ procvm(void)
     goto failed;
   vm->cr3 = pageaddress(vm->cr3page);
   memcpy(vm->cr3, kcr3, PAGESIZE);
-  stext(vm)->r = 1;
-  stext(vm)->x = 1;
-  sstack(vm)->r = 1;
-  sstack(vm)->w = 1;
+  linit(&vm->pgtp);
   return vm;
 failed:
   if (vm->cr3page)
@@ -285,8 +402,9 @@ failed:
 }
 
 void
-vmswitch(proc *p)
+vmswitch(void)
 {
+  proc *p = myproc();
   pvm *vm = p->vm;
   ulong flags;
   if (!vm)

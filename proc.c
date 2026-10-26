@@ -19,6 +19,7 @@ static proc *proc0;
 static cpu cpu0;
 
 void uenter(ulong);
+void forkret(void);
 
 static uint
 allocpid(void)
@@ -140,6 +141,12 @@ failed:
 }
 
 int
+wait(int *status)
+{
+  ;
+}
+
+int
 exit(int code)
 {
   return -1;
@@ -197,6 +204,7 @@ exec(char *path)
   ehdr eh;
   phdr ph;
   ulong phoff;
+  uint perm;
   ino = namei(path, O_EXEC);
   if (!ino)
     return -1;
@@ -204,9 +212,8 @@ exec(char *path)
   if (!sp)
     return -1;
   p->vm = vm;
-  vmseginit(stext(p->vm), 0x1000, 0x1000);
-  vmseginit(sstack(p->vm), USTACKTOP - 0x1000, 0x1000);
-  vmsegload(sstack(p->vm), USTACKTOP - 0x1000, sp);
+  vmstackinit(USTACKTOP - 0x1000, 0x1000);
+  vmload(USTACKTOP - 0x1000, sp);
   mlock(&ino->mtx);
   if (readi(ino, &eh, 0, sizeof eh) != sizeof eh)
     goto err;
@@ -224,15 +231,18 @@ exec(char *path)
       goto err;
     if (ph.p_filesz > ph.p_memsz)
       goto err;
+    perm = ((ph.p_flags & PF_X) ? VM_EXEC : 0) |
+           ((ph.p_flags & PF_W) ? VM_WRITE : 0) |
+           ((ph.p_flags & PF_R) ? VM_READ : 0);
     if (!vmap(ino, PAGEALIGNDOWN(ph.p_vaddr), ph.p_filesz,
-              VM_READ|VM_EXEC, PAGEALIGNDOWN(ph.p_offset)))
+              perm, PAGEALIGNDOWN(ph.p_offset)))
       goto err;
   }
   munlock(&ino->mtx);
   iput(ino);
   p->tf->rip = eh.e_entry;
   p->tf->rsp = USTACKTOP;
-  vmswitch(p);
+  vmswitch();
   // freevm(old);
   return 0;
 err:
@@ -240,6 +250,12 @@ err:
   munlock(&ino->mtx);
   iput(ino);
   return -1;
+}
+
+void
+schedtail(void)
+{
+  ; // do nothing
 }
 
 int
@@ -256,10 +272,17 @@ fork(void)
   top = pageaddress(cp->kstackpage) + PAGESIZE;
   tf = (trapframe*)(top - sizeof(*tf));
   ctx = (context*)(top - sizeof(context));
-  // ctx->rip = (ulong)forkret;
+  memcpy(tf, p->tf, sizeof *tf);
+  tf->rax = 0;
+  ctx->rip = (ulong)forkret;
   cp->sp = (ulong)ctx;
+  cp->cwd = idup(p->cwd);
+  cp->vm = vmdup();
+  if (!cp->vm)
+    return -1;
+  cp->parent = p;
   ready(cp);
-  return 0;
+  return cp->pid;
 }
 
 void
@@ -286,7 +309,7 @@ found:
   p->state = RUNNING;
   c->current = p;
   p->cpu = p->prevcpu = c;
-  vmswitch(p);
+  vmswitch();
   swtch(&c->sched, &p->sp);
   c->current = NULL;
   p->cpu = NULL;
@@ -310,12 +333,12 @@ init0(void *_)
   sp = allocpage();
   if (!sp)
     panic("init0 stack");
-  vmseginit(stext(proc0->vm), 0x1000, 0x1000);
-  vmseginit(sstack(proc0->vm), USTACKTOP - 0x1000, 0x1000);
-  vmsegload(stext(proc0->vm), 0x1000, tp);
-  vmsegload(sstack(proc0->vm), USTACKTOP - 0x1000, sp);
+  vmtextinit(0x1000, 0x1000);
+  vmstackinit(USTACKTOP - 0x1000, 0x1000);
+  vmload(0x1000, tp);
+  vmload(USTACKTOP - 0x1000, sp);
   memcpy(pageaddress(tp), _binary_uinit_start, isize);
-  vmswitch(proc0);
+  vmswitch();
   mountroot();
   proc0->cwd = path2inode("/");
   uenter(USTACKTOP);

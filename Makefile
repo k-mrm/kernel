@@ -51,15 +51,19 @@ kernel.bin: kernel.elf
 	@echo OBJCOPY $@
 	@$(OBJCOPY) -O binary $< $@
 
-USR_SRCS  := $(wildcard usr/*.c)
+USR_SRCS  := $(filter-out usr/_lib.c, $(wildcard usr/*.c))
 USR_PROGS := $(USR_SRCS:usr/%.c=rootfs/%)
 USR_CFLAGS = -Wall -Og -g -ffreestanding -nostdinc -nostdlib -nostartfiles -Iusr
 
-rootfs/%: usr/%.c usr/syscall.S usr/user.ld usr/user.h
+usr/_lib.o: usr/_lib.c usr/user.h
+	@echo CC $@
+	@$(CC) $(USR_CFLAGS) -c $< -o $@
+
+rootfs/%: usr/%.c usr/syscall.S usr/user.ld usr/user.h usr/_lib.o
 	@echo CC $@
 	@$(CC) $(USR_CFLAGS) -c $< -o $(<:.c=.o)
 	@$(CC) $(USR_CFLAGS) -c usr/syscall.S -o usr/syscall.o
-	@$(LD) -nostdlib -T usr/user.ld -o $@ $(<:.c=.o) usr/syscall.o
+	@$(LD) -nostdlib -T usr/user.ld -o $@ $(<:.c=.o) usr/syscall.o usr/_lib.o
 	@rm -f $(<:.c=.o) usr/syscall.o
 
 user.img: $(USR_PROGS) $(shell find rootfs -type f)
@@ -75,7 +79,7 @@ kernel.img: bootblock kernel.bin
 
 clean:
 	@echo CLEAN
-	$(RM) *.o *.d *.elf *.bin *.img bootblock .gdbinit
+	$(RM) *.o *.d *.elf *.bin *.img bootblock .gdbinit usr/_lib.o
 
 QEMUOPTS = -nographic -drive file=kernel.img,index=0,media=disk,format=raw -drive file=user.img,index=1,media=disk,format=raw -smp $(NCPU) -m $(MEMSZ)
 

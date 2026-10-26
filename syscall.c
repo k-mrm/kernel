@@ -21,28 +21,50 @@ sysexec(trapframe *tf)
   if (!validstr(ARG0, 128, 0))
     return -1;
   strcpy(name, (const char*)ARG0);
-  exec(name);
-  return 0;
+  return (ulong)exec(name);
 }
 
 static ulong
 sysread(trapframe *tf)
 {
+  if (!validate(ARG1, ARG2, 0))
+    return -1;
   return (ulong)-1;
 }
 
 static ulong
 syswrite(trapframe *tf)
 {
-  printk("syswrite enter\n");
-  panic("wr %s\n", (const char*)ARG1);
-  return (ulong)-1;
+  uint i;
+  if (!validate(ARG1, ARG2, 0))
+    return -1;
+  // stub
+  for (i = 0; i < ARG2; i++) {
+    printk("%c", ((char*)ARG1)[i]);
+  }
+  return i;
 }
 
 static ulong
 sysfork(trapframe *tf)
 {
-  return (ulong)-1;
+  return (ulong)fork();
+}
+
+static ulong
+sysexit(trapframe *tf)
+{
+  int exitcode;
+  exitcode = ARG0;
+  return exit(exitcode);
+}
+
+static ulong
+syswait(trapframe *tf)
+{
+  if (ARG0 && !validate(ARG0, sizeof(int), 1))
+    return -1;
+  return wait((int*)ARG0);
 }
 
 static ulong (*syscalls[NR_SYSCALL])(trapframe *tf) = {
@@ -51,6 +73,8 @@ static ulong (*syscalls[NR_SYSCALL])(trapframe *tf) = {
   sysread,
   syswrite,
   sysfork,
+  sysexit,
+  syswait,
 };
 
 void

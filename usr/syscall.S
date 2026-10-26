@@ -21,3 +21,13 @@ fork:
   movl $SYS_FORK, %eax
   int $0x80
   ret
+.global exit
+exit:
+  movl $SYS_EXIT, %eax
+  int $0x80
+  ret
+.global wait
+wait:
+  movl $SYS_WAIT, %eax
+  int $0x80
+  ret

@@ -16,28 +16,22 @@ struct segment {
   spinlock lk;
   inode *ino;
   uint offset;
+  uint ref;
+  uint share;
   bool r: 1;
   bool w: 1;
   bool x: 1;
+  bool stack: 1;
 };
+
+#define NSEG  6
 
 struct pvm {
   ulong *cr3;
   page *cr3page;
-  segment seg[3];
+  list pgtp;
+  segment *seg[NSEG];
 };
-
-static inline segment *
-stext(pvm *vm)
-{
-  return &vm->seg[0];
-}
-
-static inline segment *
-sstack(pvm *vm)
-{
-  return &vm->seg[1];
-}
 
 #define USTACKTOP     0x7ffffff000
 

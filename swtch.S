@@ -24,5 +24,5 @@ swtch:
 
 .global forkret
 forkret:
-  // call    schedtail
+  call    schedtail
   jmp     trapret
