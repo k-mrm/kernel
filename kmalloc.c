@@ -114,6 +114,7 @@ kmalloc(uint sz)
   p = addresspage((void*)m);
   p->inuse--;
   unlock(&obj->lock);
+  memset((void*)m, 0, sz);
   return (void*)m;
 }
 

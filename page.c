@@ -4,9 +4,10 @@
 #include <page.h>
 #include <memlayout.h>
 #include <list.h>
+#include <lock.h>
 
 struct {
-  // spinlock lock;
+  spinlock lk;
   list freelist;
 } kmem;
 
@@ -23,12 +24,15 @@ page *
 allocpage(void)
 {
   page *p = NULL;
+  lock(&kmem.lk);
   if (!lempty(&kmem.freelist)) {
     p = LIST_TOP(&kmem.freelist, page, e);
     ldelete(&p->e);
     p->ref = 1;
-    memset(pageaddress(p), PAGESIZE, 0);
   }
+  unlock(&kmem.lk);
+  if (p)
+    memset(pageaddress(p), PAGESIZE, 0);
   return p;
 }
 
@@ -37,11 +41,31 @@ freepage(page *p)
 {
   if (!p)
     return;
-  if (!p->ref)
-    return;
+  if (p->ref != 1)
+    panic("p");
+  p->ref = 0;
+  lock(&kmem.lk);
+  lappend(&kmem.freelist, &p->e);
+  unlock(&kmem.lk);
+}
+
+page*
+getpage(page *p)
+{
+  p->ref++;
+  return p;
+}
+
+void
+putpage(page *p)
+{
+  if (p->ref == 0)
+    panic("put");
   p->ref--;
-  if (!p->ref) {
+  if (p->ref == 0) {
+    lock(&kmem.lk);
     lappend(&kmem.freelist, &p->e);
+    unlock(&kmem.lk);
   }
 }
 
@@ -72,6 +96,7 @@ pageinit1(ulong end)
   u64 cbase, cend;
   uint npage = 0;
   page *block;
+  slockinit(&kmem.lk);
   linit(&kmem.freelist);
   for (int i = 0; i < e820count; i++) {
     printk("e820 memory %p-%p %d\n", e820[i].base, e820[i].base+e820[i].len, e820[i].type);
@@ -89,9 +114,5 @@ pageinit1(ulong end)
     cbase += npage * sizeof (page);
     initblock(block, PAGEALIGN(cbase), end);
   }
-  
   printk("kmem %d pages (%d KiB)\n", kmem_npages(), kmem_npages() << 2);
-  page *p = allocpage();
-  void *v = pageaddress(p);
-  printk("%p %p %p\n", p, v, addresspage(v));
 }

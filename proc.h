@@ -27,6 +27,7 @@ struct cpu {
   uint id;
   tss ts;
   ulong gdt[NR_SEG];
+  int yield;
 };
 
 struct proc {

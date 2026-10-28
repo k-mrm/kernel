@@ -271,7 +271,7 @@ fork(void)
   strcpy(cp->name, p->name);
   top = pageaddress(cp->kstackpage) + PAGESIZE;
   tf = (trapframe*)(top - sizeof(*tf));
-  ctx = (context*)(top - sizeof(context));
+  ctx = (context*)((void*)tf - sizeof(context));
   memcpy(tf, p->tf, sizeof *tf);
   tf->rax = 0;
   ctx->rip = (ulong)forkret;
@@ -283,6 +283,20 @@ fork(void)
   cp->parent = p;
   ready(cp);
   return cp->pid;
+}
+
+void
+yield(void)
+{
+  proc *p;
+  if (preemptible())
+    panic("yield: preemptible");
+  p = myproc();
+  if (!p)
+    panic("yield");
+  mycpu()->yield = 0;
+  ready(p);
+  swtch(&p->sp, &mycpu()->sched);
 }
 
 void
@@ -335,8 +349,10 @@ init0(void *_)
     panic("init0 stack");
   vmtextinit(0x1000, 0x1000);
   vmstackinit(USTACKTOP - 0x1000, 0x1000);
-  vmload(0x1000, tp);
-  vmload(USTACKTOP - 0x1000, sp);
+  if (vmload(0x1000, tp) < 0)
+    panic("init0 tp");
+  if (vmload(USTACKTOP - 0x1000, sp) < 0)
+    panic("init0 sp");
   memcpy(pageaddress(tp), _binary_uinit_start, isize);
   vmswitch();
   mountroot();
@@ -348,7 +364,7 @@ init0(void *_)
 void
 procinit(void)
 {
-  kspawn("init", init0, NULL);
+  kspawn("init0", init0, NULL);
 }
 
 void

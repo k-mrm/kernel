@@ -11,6 +11,8 @@
 static ulong *kcr3;
 static ulong kcr3pa;
 
+static bool segreadonly(segment*);
+
 static ulong *
 pagewalk(pvm *vm, ulong virt, bool alloc)
 {
@@ -112,7 +114,7 @@ vaseg(ulong virt)
   if (!myproc())
     return NULL;
   vm = myproc()->vm;
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < NSEG; i++) {
     seg = vm->seg[i];
     if (seg && seg->base <= virt && virt < seg->end)
       return seg;
@@ -171,12 +173,48 @@ validstr(ulong addr, uint limit, int wr)
   return false;
 }
 
+static ulong
+fixpage(segment *seg, page **pp, ulong soff, int wr)
+{
+  page *p, *np;
+  ulong flags = PTE_U | PTE_P;
+  if (!pp)
+    panic("fixpage");
+  p = *pp;
+  if (!p) {
+    p = allocpage();
+    *pp = p;
+    if (seg->ino) {
+      mlock(&seg->ino->mtx);
+      if (readi(seg->ino, pageaddress(p), seg->offset+soff, PAGESIZE) < 0) {
+        munlock(&seg->ino->mtx);
+        return 0;
+      }
+      munlock(&seg->ino->mtx);
+    }
+  }
+  if (segreadonly(seg))
+    return flags;
+  if (seg->w && !wr && seg->ref == 1)
+    return flags; // CoW
+  if (p->ref > 1) {
+    np = allocpage();
+    if (!np)
+      return 0;
+    memcpy(pageaddress(np), pageaddress(p), PAGESIZE);
+    *pp = np;
+    putpage(p);
+  }
+  return PTE_W | flags;
+}
+
 int
 faultresume(trapframe *tf, ulong addr, int wr, int user)
 {
   segment *seg;
-  page *p, **pp;
-  ulong flags = 0;
+  page **pp;
+  ulong soff;
+  ulong flags;
   int ret = 0;
   if (user)
     sti();
@@ -193,30 +231,19 @@ faultresume(trapframe *tf, ulong addr, int wr, int user)
       panic("kernel pf");
     }
   }
-  flags = (seg->w ? PTE_W : 0) |
-          PTE_P |
-          PTE_U;
-  pp = ptwalk(seg, addr - seg->base);
+  if (!seg->w && wr) {
+    ret = -1;
+    goto end;
+  }
+  soff = PAGEALIGNDOWN(addr) - seg->base;
+  pp = ptwalk(seg, soff);
   if (!pp) {
     ret = -1;
     goto end;
   }
-  if (!*pp) {
-    p = allocpage();
-    if (!p) {
-      ret = -1;
-      goto end;
-    }
-    *pp = p;
-  } 
-  if (seg->ino) {
-    mlock(&seg->ino->mtx);
-    if (readi(seg->ino, pageaddress(*pp), seg->offset, PAGESIZE) < 0) {
-      munlock(&seg->ino->mtx);
-      ret = -1;
-      goto end;
-    }
-    munlock(&seg->ino->mtx);
+  if ((flags = fixpage(seg, pp, soff, wr)) == 0) {
+    ret = -1;
+    goto end;
   }
   vmmappage(PAGEALIGNDOWN(addr), pa(pageaddress(*pp)), flags);
 end:
@@ -269,7 +296,7 @@ vmap(inode *ino, ulong vaddr, ulong sz, int perm, uint offset)
   return (void*)vaddr;
 }
 
-void
+int
 vmload(ulong uv, page *p)
 {
   segment *seg;
@@ -277,12 +304,13 @@ vmload(ulong uv, page *p)
   page **pp;
   seg = vaseg(uv);
   if (!seg)
-    return;
+    return -1;
   off = uv - seg->base;
   pp = ptwalk(seg, off);
   if (!pp)
-    return;
+    return -1;
   *pp = p;
+  return 0;
 }
 
 static bool
@@ -320,6 +348,22 @@ vmstackinit(ulong vaddr, ulong size)
   seg->stack = 1;
 }
 
+static pagetree*
+treecopy(pagetree *pt)
+{
+  pagetree *npt;
+  page *p;
+  if (!pt)
+    return NULL;
+  npt = pageaddress(allocpage());
+  for (int i = 0; i < 512; i++) {
+    p = pt->pages[i];
+    if (p)
+      npt->pages[i] = getpage(p);
+  }
+  return npt;
+}
+
 static segment*
 segdup(segment *seg)
 {
@@ -329,13 +373,6 @@ segdup(segment *seg)
   if (segreadonly(seg) || seg->share) {
     seg->ref++;
     return seg;
-  } else if (seg->stack) {
-    nseg = allocseg();
-    nseg->base = seg->base;
-    nseg->end = seg->end;
-    nseg->r = 1; nseg->w = 1; nseg->x = 0;
-    nseg->stack = 1;
-    return nseg;
   } else if (seg->w) {
     nseg = allocseg();
     nseg->base = seg->base;
@@ -345,7 +382,11 @@ segdup(segment *seg)
       nseg->ino = idup(seg->ino);
       nseg->offset = seg->offset;
     }
+    for (int i = 0; i < 64; i++)
+      nseg->pt[i] = treecopy(seg->pt[i]);
     return nseg;
+  } else {
+    panic("w");
   }
   return NULL;
 }
@@ -363,6 +404,7 @@ invmap(void)
     ldelete(&p->e);
     freepage(p);
   }
+  vmswitch();
   irqrestore(flags);
 }
 

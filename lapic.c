@@ -4,6 +4,7 @@
 #include <irq.h>
 #include <page.h>
 #include <sys.h>
+#include <proc.h>
 
 #define ID        0x020
 #define VER       0x030
@@ -84,8 +85,9 @@ enlapic(void)
 }
 
 static int
-lapictimer_handle(irq *_)
+lapictimerintr(irq *_)
 {
+  mycpu()->yield = 1;
   return 0;
 }
 
@@ -108,7 +110,7 @@ enlapictimer(void)
   lapicwr(LVT_TIMER, lvt);
   lapicwr(TM_DIV, 0xb);
   lapicwr(TM_INIT, 10000000);
-  newirq(0x20, lapiceoi, lapictimer_handle, NULL);
+  newirq(0x20, lapiceoi, lapictimerintr, NULL);
 }
 
 static void

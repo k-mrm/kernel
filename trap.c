@@ -215,7 +215,11 @@ pagefault(trapframe *tf)
 static void
 gpfault(trapframe *tf)
 {
-  panic("gp");
+  ulong faultaddr = rdcr2();
+  printk("GP: rip=%p cs=%p err=%p rsp=%p\n", tf->rip, tf->cs, tf->errcode, tf->rsp);
+  printk("rax=%p rbx=%p rcx=%p rdx=%p\n", tf->rax, tf->rbx, tf->rcx, tf->rdx);
+  printk("rsi=%p rdi=%p rbp=%p\n", tf->rsi, tf->rdi, tf->rbp);
+  panic("gp %p", faultaddr);
 }
 
 void
@@ -253,22 +257,25 @@ trap(trapframe *tf)
   int err = 0;
   switch (tf->trapno) {
     case E_PF:
-      pagefault (tf);
+      pagefault(tf);
       break;
     case E_GP:
       gpfault(tf);
       break;
     case 0x80:
-      if (myproc())
-        myproc()->tf = tf;
+      if (!myproc())
+        panic("syscall");
+      myproc()->tf = tf;
       syscall(tf);
-      break;
+      return;
     default:
       err = irqhandle(tf);
       if (err < 0)
         panic("irq %d", tf->trapno);
       break;
   }
+  if (myproc() && mycpu()->yield)
+    yield();
 }
 
 proc *
