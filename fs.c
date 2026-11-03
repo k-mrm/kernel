@@ -3,7 +3,17 @@
 #include <fs.h>
 #include <proc.h>
 
+typedef struct mount mount;
+struct mount {
+  inode *dir;
+  superblock *sb;
+  int ro;
+  list ment;
+};
+
 static superblock *rootsuper;
+static LIST_HEAD(mnttable);
+static SPINLOCK(mtlock);
 
 static void __iput(inode*);
 
@@ -81,7 +91,7 @@ retry:
   ino->free = 0;
   lappend(&sb->itable, &ino->e);
   unlock(&sb->lk);
-  if (ext2iget(ino) < 0)
+  if (sb->iget(ino) < 0)
     err = 1;
   lock(&sb->lk);
   ino->new = 0;
@@ -158,10 +168,21 @@ mountroot(void)
 }
 
 // must hold pi->mtx
-static inode*
+inode*
 lookup(inode *pi, char *name)
 {
-  return ext2lookup(pi, name);
+  if (!pi->lookup)
+    return NULL;
+  return pi->lookup(pi, name);
+}
+
+// must hold pi->mtx
+inode*
+createi(inode *pi, char *name, u16 mode)
+{
+  if (!pi->create)
+    return NULL;
+  return pi->create(pi, name, mode);
 }
 
 // must hold ino->mtx
@@ -176,6 +197,39 @@ int
 writei(inode *ino, void *buf, uint off, uint n)
 {
   return ino->writei(ino, buf, off, n);
+}
+
+int
+mountsb(char *path, superblock *sb)
+{
+  mount *m;
+  inode *mp;
+  mp = path2inode(path);
+  if (!mp)
+    return -1;
+  mlock(&mp->mtx);
+  lock(&mtlock);
+  LIST_FOREACH (m, &mnttable, ment) {
+    if (m->sb == sb) {
+      unlock(&mtlock);
+      return -1;
+    }
+  }
+  m = kmalloc(sizeof *m);
+  m->dir = mp;
+  m->sb = sb;
+  lappend(&mnttable, &m->ment);
+  unlock(&mtlock);
+  mp->mount = 1;
+  munlock(&mp->mtx);
+  return 0;
+}
+
+int
+devmount(void)
+{
+  mountsb("/dev", devsuperblock());
+  return 0;
 }
 
 static char*
@@ -200,6 +254,27 @@ pathname(char *path, char *name, int *err)
 }
 
 static inode*
+mountpoint(inode *ino)
+{
+  superblock *sb;
+  mount *m;
+  if (!ino->mount)
+    panic("mnt");
+  lock(&mtlock);
+  LIST_FOREACH (m, &mnttable, ment) {
+    if (m->dir == ino) {
+      unlock(&mtlock);
+      goto found;
+    }
+  }
+  unlock(&mtlock);
+  panic("no mnt");
+found:
+  sb = m->sb;
+  return idup(sb->rooti);
+}
+
+static inode*
 traverse(inode *pi, char *path, char *name)
 {
   int err;
@@ -214,6 +289,11 @@ traverse(inode *pi, char *path, char *name)
     ino = lookup(pi, name);
     if (!ino)
       goto fail;
+    if (ino->mount) {
+      ino = mountpoint(ino);
+      if (!ino)
+        goto fail;
+    }
     munlock(&pi->mtx);
     iput(pi);
     pi = ino;
@@ -244,31 +324,42 @@ path2inode(char *path)
   return traverse(ino, path, name);
 }
 
+// must hold ino->mtx
+static int
+permcheck(inode *ino, int mode)
+{
+  switch (mode & 3) {
+    case O_READ:
+      if (ino->mode & S_IRUSR)
+        return 0;
+      break;
+    case O_WRITE:
+      if (ino->mode & S_IWUSR)
+        return 0;
+      break;
+    case O_RDWR:
+      if ((ino->mode & (S_IWUSR|S_IRUSR)) == (S_IWUSR|S_IRUSR))
+        return 0;
+      break;
+    case O_EXEC:
+      if ((ino->mode & (S_IXUSR|S_IRUSR)) == (S_IXUSR|S_IRUSR))
+        return 0;
+      break;
+    default: panic("namei");
+  }
+  return -1;
+}
+
 inode*
 namei(char *path, int mode)
 {
+  int err;
   inode *ino;
   ino = path2inode(path);
   if (!ino)
     return NULL;
-  switch (mode & 3) {
-    case O_READ:
-      if (ino->mode & S_IRUSR)
-        return ino;
-      break;
-    case O_WRITE:
-      if (ino->mode & S_IWUSR)
-        return ino;
-      break;
-    case O_RDWR:
-      if ((ino->mode & (S_IWUSR|S_IRUSR)) == (S_IWUSR|S_IRUSR))
-        return ino;
-      break;
-    case O_EXEC:
-      if ((ino->mode & (S_IXUSR|S_IRUSR)) == (S_IXUSR|S_IRUSR))
-        return ino;
-      break;
-    default: panic("namei");
-  }
-  return NULL;
+  mlock(&ino->mtx);
+  err = permcheck(ino, mode);
+  munlock(&ino->mtx);
+  return err ? NULL : ino;
 }

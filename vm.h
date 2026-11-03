@@ -14,8 +14,10 @@ struct segment {
   ulong base, end;
   pagetree *pt[64]; // 2MiB * 64 = 128 MiB
   spinlock lk;
+  mutex mtx;
   inode *ino;
   uint offset;
+  uint filesz;      // file-backed bytes from base (rest is zero bss)
   uint ref;
   uint share;
   bool r: 1;

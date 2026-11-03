@@ -152,11 +152,15 @@ validate(ulong addr, uint len, int wr)
     seg = vaseg(addr);
     if (!seg || (!seg->w && wr))
       return false;
+    mlock(&seg->mtx);
     if (addr + len > seg->end) {
       len -= seg->end - addr;
       addr = seg->end;
-    } else
+    } else {
+      munlock(&seg->mtx);
       break;
+    }
+    munlock(&seg->mtx);
   }
   return true;
 }
@@ -173,6 +177,7 @@ validstr(ulong addr, uint limit, int wr)
   return false;
 }
 
+// must hold seg->mtx
 static ulong
 fixpage(segment *seg, page **pp, ulong soff, int wr)
 {
@@ -184,9 +189,11 @@ fixpage(segment *seg, page **pp, ulong soff, int wr)
   if (!p) {
     p = allocpage();
     *pp = p;
-    if (seg->ino) {
+    if (seg->ino && soff < seg->filesz) {
+      uint n = seg->filesz - soff;
+      if (n > PAGESIZE) n = PAGESIZE;
       mlock(&seg->ino->mtx);
-      if (readi(seg->ino, pageaddress(p), seg->offset+soff, PAGESIZE) < 0) {
+      if (readi(seg->ino, pageaddress(p), seg->offset+soff, n) < 0) {
         munlock(&seg->ino->mtx);
         return 0;
       }
@@ -212,7 +219,7 @@ int
 faultresume(trapframe *tf, ulong addr, int wr, int user)
 {
   segment *seg;
-  page **pp;
+  page *p, **pp;
   ulong soff;
   ulong flags;
   int ret = 0;
@@ -228,24 +235,29 @@ faultresume(trapframe *tf, ulong addr, int wr, int user)
       ret = -1;
       goto end;
     } else {
-      panic("kernel pf");
+      panic("kernel pf %p", addr);
     }
   }
   if (!seg->w && wr) {
     ret = -1;
     goto end;
   }
+  mlock(&seg->mtx);
   soff = PAGEALIGNDOWN(addr) - seg->base;
   pp = ptwalk(seg, soff);
   if (!pp) {
+    munlock(&seg->mtx);
     ret = -1;
     goto end;
   }
   if ((flags = fixpage(seg, pp, soff, wr)) == 0) {
+    munlock(&seg->mtx);
     ret = -1;
     goto end;
   }
-  vmmappage(PAGEALIGNDOWN(addr), pa(pageaddress(*pp)), flags);
+  p = *pp;
+  munlock(&seg->mtx);
+  vmmappage(PAGEALIGNDOWN(addr), pa(pageaddress(p)), flags);
 end:
   cli();
   return ret;
@@ -257,6 +269,7 @@ allocseg(void)
   segment *seg;
   seg = kmalloc(sizeof *seg);
   slockinit(&seg->lk);
+  mtxinit(&seg->mtx);
   seg->ref = 1;
   return seg;
 }
@@ -272,27 +285,21 @@ newseg(pvm *vm)
 }
 
 void*
-vmap(inode *ino, ulong vaddr, ulong sz, int perm, uint offset)
+vmap(inode *ino, ulong vaddr, ulong filesz, ulong memsz, int perm, uint offset)
 {
   segment *seg;
   pvm *vm = myproc()->vm;
-  seg = vaseg(vaddr);
-  if (!seg) {
-    seg = newseg(vm);
-    seg->r = perm & VM_READ;
-    seg->w = perm & VM_WRITE;
-    seg->x = perm & VM_EXEC;
-    seg->base = vaddr;
-    seg->end = vaddr + PAGEALIGN(sz);
-  }
-  if (seg != vaseg(vaddr+sz-1))
+  if (vaseg(vaddr))
     return NULL;
-  if (!seg->ino) {
-    seg->ino = idup(ino);
-    seg->offset = offset;
-  } else if (seg->ino != ino) {
-    return NULL;
-  }
+  seg = newseg(vm);
+  seg->base = vaddr;
+  seg->end = PAGEALIGN(vaddr + memsz);
+  seg->r = perm & VM_READ;
+  seg->w = perm & VM_WRITE;
+  seg->x = perm & VM_EXEC;
+  seg->ino = idup(ino);
+  seg->offset = offset;
+  seg->filesz = filesz;
   return (void*)vaddr;
 }
 
@@ -348,6 +355,35 @@ vmstackinit(ulong vaddr, ulong size)
   seg->stack = 1;
 }
 
+static void
+putseg(segment *seg)
+{
+  uint ref;
+  page *p;
+  if (!seg)
+    return;
+  mlock(&seg->mtx);
+  if (seg->ref == 0)
+    panic("putseg");
+  ref = --seg->ref;
+  munlock(&seg->mtx);
+  if (!ref) {
+    for (int i = 0; i < 64; i++) {
+      if (!seg->pt[i])
+        continue;
+      for (int j = 0; j < 512; j++) {
+        p = seg->pt[i]->pages[j];
+        if (p)
+          putpage(p);
+      }
+      freepage(addresspage(seg->pt[i]));
+    }
+    if (seg->ino)
+      iput(seg->ino);
+    kfree(seg);
+  }
+}
+
 static pagetree*
 treecopy(pagetree *pt)
 {
@@ -370,8 +406,10 @@ segdup(segment *seg)
   segment *nseg;
   if (!seg)
     return NULL;
+  mlock(&seg->mtx);
   if (segreadonly(seg) || seg->share) {
     seg->ref++;
+    munlock(&seg->mtx);
     return seg;
   } else if (seg->w) {
     nseg = allocseg();
@@ -384,10 +422,12 @@ segdup(segment *seg)
     }
     for (int i = 0; i < 64; i++)
       nseg->pt[i] = treecopy(seg->pt[i]);
+    munlock(&seg->mtx);
     return nseg;
   } else {
     panic("w");
   }
+  munlock(&seg->mtx);
   return NULL;
 }
 
@@ -406,6 +446,20 @@ invmap(void)
   }
   vmswitch();
   irqrestore(flags);
+}
+
+void
+vmfree(pvm *vm)
+{
+  page *p, *tp;
+  for (int i = 0; i < NSEG; i++)
+    putseg(vm->seg[i]);
+  LIST_FOREACH_SAFE (p, tp, &vm->pgtp, e) {
+    ldelete(&p->e);
+    freepage(p);
+  }
+  freepage(vm->cr3page);
+  kfree(vm);
 }
 
 pvm*

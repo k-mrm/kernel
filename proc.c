@@ -131,6 +131,9 @@ allocproc(void)
   p->pid = allocpid();
   p->vm = NULL;
   p->state = NEWBORN;
+  waitinit(&p->wait);
+  linit(&p->exitq);
+  slockinit(&p->lk);
   lock(&proctable_lk);
   lappend(&proctable, &p->ptable);
   unlock(&proctable_lk);
@@ -143,13 +146,51 @@ failed:
 int
 wait(int *status)
 {
-  ;
+  proc *p = myproc();
+  uint cpid;
+  defunct *d;
+  lock(&p->lk);
+  if (p->nchild == 0 && lempty(&p->exitq)) {
+    unlock(&p->lk);
+    return -1;
+  }
+  while (lempty(&p->exitq))
+    sleep(&p->wait, &p->lk);
+  d = LIST_TOP(&p->exitq, defunct, ent);
+  ldelete(&d->ent);
+  unlock(&p->lk);
+  if (status)
+    *status = d->exitcode;
+  cpid = d->pid;
+  kfree(d);
+  return cpid;
 }
 
 int
 exit(int code)
 {
-  return -1;
+  proc *p = myproc();
+  proc *pp;
+  defunct *d;
+  p->exitcode = code;
+  if (p->kf)
+    goto kexit;
+  pp = p->parent;
+  if (!pp)
+    panic("exit");
+  d = kmalloc(sizeof *d);
+  d->exitcode = code;
+  d->pid = p->pid;
+  lock(&pp->lk);
+  pp->nchild--;
+  lappend(&pp->exitq, &d->ent);
+  wakeup(&pp->wait);
+  unlock(&pp->lk);
+kexit:
+  p->state = DEAD;
+  cli();
+  swtch(&p->sp, &mycpu()->sched);
+  panic("exit");
 }
 
 static void
@@ -234,8 +275,7 @@ exec(char *path)
     perm = ((ph.p_flags & PF_X) ? VM_EXEC : 0) |
            ((ph.p_flags & PF_W) ? VM_WRITE : 0) |
            ((ph.p_flags & PF_R) ? VM_READ : 0);
-    if (!vmap(ino, PAGEALIGNDOWN(ph.p_vaddr), ph.p_filesz,
-              perm, PAGEALIGNDOWN(ph.p_offset)))
+    if (!vmap(ino, ph.p_vaddr, ph.p_filesz, ph.p_memsz, perm, ph.p_offset))
       goto err;
   }
   munlock(&ino->mtx);
@@ -280,6 +320,10 @@ fork(void)
   cp->vm = vmdup();
   if (!cp->vm)
     return -1;
+  for (int i = 0; i < 16; i++)
+    if (p->openf[i])
+      cp->openf[i] = fdup(p->openf[i]);
+  p->nchild++;
   cp->parent = p;
   ready(cp);
   return cp->pid;
@@ -297,6 +341,17 @@ yield(void)
   mycpu()->yield = 0;
   ready(p);
   swtch(&p->sp, &mycpu()->sched);
+}
+
+static void
+reap(void)
+{
+  proc *p = myproc();
+  if (!p)
+    panic("reap");
+  if (p->state == DEAD) {
+    freeproc(p);
+  }
 }
 
 void
@@ -325,6 +380,7 @@ found:
   p->cpu = p->prevcpu = c;
   vmswitch();
   swtch(&c->sched, &p->sp);
+  reap();
   c->current = NULL;
   p->cpu = NULL;
   goto runloop;
@@ -356,6 +412,7 @@ init0(void *_)
   memcpy(pageaddress(tp), _binary_uinit_start, isize);
   vmswitch();
   mountroot();
+  devmount();
   proc0->cwd = path2inode("/");
   uenter(USTACKTOP);
   panic("init0 exit");

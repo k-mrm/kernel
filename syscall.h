@@ -5,4 +5,6 @@
 #define SYS_FORK    4
 #define SYS_EXIT    5
 #define SYS_WAIT    6
-#define NR_SYSCALL  7
+#define SYS_OPEN    7
+#define SYS_CLOSE   8
+#define NR_SYSCALL  9

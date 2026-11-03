@@ -32,7 +32,7 @@ allocpage(void)
   }
   unlock(&kmem.lk);
   if (p)
-    memset(pageaddress(p), PAGESIZE, 0);
+    memset(pageaddress(p), 0, PAGESIZE);
   return p;
 }
 

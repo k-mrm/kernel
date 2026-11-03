@@ -10,6 +10,8 @@ typedef struct ext2super ext2super;
 typedef struct ext2inode ext2inode;
 typedef struct ext2bgdesc ext2bgdesc;
 
+static int ext2iget(inode*);
+
 /* inode.i_mode */
 #define EXT2_S_IFSOCK 0xc000
 #define EXT2_S_IFLNK  0xa000
@@ -162,12 +164,14 @@ struct ext2super {
   uint firstino;
   uint inocnt;
   uint blockcnt;
-  uint bpg;
-  uint ipg;
-  uint ipb;
+  uint bpg; // block per group
+  uint ipg; // inode per group
+  uint ipb; // inode per block
+  uint dpb; // desc per block
   uint ngroups;
   uint firstblock;
   ext2bgdesc **bgdesc;
+  spinlock bglock;
 };
 
 struct ext2inode {
@@ -186,7 +190,7 @@ ext2superinit(superblock *sb)
   ext2bgdesc *bg;
   ext2dsuper *ds;
   ext2super *es;
-  uint groupblocks, dpb;
+  uint groupblocks;
   block *b = sb->dev;
   ds = kmalloc(1024);
   if (!ds)
@@ -205,18 +209,20 @@ ext2superinit(superblock *sb)
   es->ipg = ds->s_inodes_per_group;
   es->firstblock = ds->s_first_data_block;
   es->ngroups = (es->blockcnt - es->firstblock + es->bpg - 1) / es->bpg;
-  dpb = sb->bsize / sizeof(ext2bgdesc);
+  es->dpb = sb->bsize / sizeof(ext2bgdesc);
   es->ipb = sb->bsize / es->inosize;
-  groupblocks = (es->ngroups + dpb - 1) / dpb;
+  groupblocks = (es->ngroups + es->dpb - 1) / es->dpb;
   es->bgdesc = kmalloc(sizeof(ext2bgdesc*) * groupblocks);
-  for (int i = 0; i < groupblocks; i++) {
+  for (uint i = 0; i < groupblocks; i++) {
     bg = kmalloc(sb->bsize);
     if (!bg)
       panic("bg");
     bread(sb, bgstart(sb) + i, bg);
     es->bgdesc[i] = bg;
   }
+  slockinit(&es->bglock);
   sb->fssuper = es;
+  sb->iget = ext2iget;
   sb->rooti = iget(sb, EXT2_ROOT_INO);
   if (!sb->rooti)
     panic("ext2super");
@@ -342,7 +348,7 @@ ext2writei(inode *ino, void *buf, uint off, uint n)
   return buf - base;
 }
 
-inode *
+static inode*
 ext2lookup(inode *pi, char *name)
 {
   superblock *sb = pi->super;
@@ -366,6 +372,10 @@ ext2lookup(inode *pi, char *name)
     }
     bread(sb, bno, tmp);
     de = tmp + (off % sb->bsize);
+    if (de->rec_len == 0) {
+      kfree(tmp);
+      break;
+    }
     if (de->inode == 0 ||
         strlen(name) != de->name_len ||
         memcmp(name, de->name, de->name_len)) {
@@ -386,11 +396,10 @@ static ext2bgdesc *
 inumbgdesc(superblock *sb, int inum)
 {
   ext2super *es = sb->fssuper;
-  u32 group, block, off, dpb;
+  u32 group, block, off;
   group = (inum - 1) / es->ipg;
-  dpb = sb->bsize / sizeof(ext2bgdesc);
-  block = group / dpb;
-  off = group % dpb;
+  block = group / es->dpb;
+  off = group % es->dpb;
   return es->bgdesc[block] + off;
 }
 
@@ -420,12 +429,172 @@ rawinode(superblock *sb, int inum, void **bp)
   return (ext2dinode*)(buf + off);
 }
 
+static int
+availinum(superblock *sb, uchar *ibmp)
+{
+  uchar chunk = 0xff;
+  int inum = 1;
+  for (int i = 0; i < sb->bsize; i++) {
+    if ((chunk = ibmp[i]) != 0xff)
+      break;
+    inum += 8;
+  }
+  if (chunk == 0xff)   /* no free inode */
+    return -1;
+  for(; chunk & 1; chunk >>= 1)
+    inum++;
+  return inum;
+}
+
+static int
+ibmpwrite(superblock *sb, uchar *ibmp, int ino, int bit)
+{
+  int bitn = ino - 1;
+  int chunkn;
+  uchar c;
+  for (chunkn = 0; chunkn < sb->bsize; chunkn++) {
+    if (bitn < 8)
+      goto found;
+    bitn -= 8;
+  }
+  return -1;
+found:
+  c = ibmp[chunkn];
+  if (bit)
+    c |= 1 << bitn;
+  else
+    c &= ~(char)(1 << bitn);
+  ibmp[chunkn] = c;
+  return 0;
+}
+
+static int
+allocinum(superblock *sb)
+{
+  ext2super *es = sb->fssuper;
+  ext2bgdesc *bgrps;
+  ext2bgdesc *desc;
+  void *ibmp;
+  int inum;
+  uint i, d, groupblocks;
+  if (!es)
+    panic("es");
+  groupblocks = (es->ngroups + es->dpb - 1) / es->dpb;
+  for (i = 0; i < groupblocks; i++) {
+    bgrps = es->bgdesc[i];
+    for (d = 0; d < es->dpb; d++) {
+retry:
+      desc = bgrps + d;
+      if (desc->bg_free_inodes_count)
+        goto found;
+    }
+  }
+  return -1;
+found:
+  ibmp = kmalloc(sb->bsize);
+  if (!ibmp)
+    return -1;
+  bread(sb, desc->bg_inode_bitmap, ibmp);
+  lock(&es->bglock);
+  inum = availinum(sb, ibmp);
+  if (inum < 0)
+    goto retry;
+  ibmpwrite(sb, ibmp, inum, 1);
+  desc->bg_free_inodes_count--;
+  bwrite(sb, desc->bg_inode_bitmap, ibmp);
+  unlock(&es->bglock);
+  kfree(ibmp);
+  return inum;
+}
+
+#define EXT2_DIR_REC_LEN(_namelen)  (((_namelen) + 8 + 3) & ~3)
+
+static inode*
+ext2create(inode *pi, char *name, u16 mode)
+{
+  superblock *sb = pi->super;
+  int inum;
+  ext2dentry *de, *de1;
+  uint namelen = strlen(name);
+  void *buf, *tmp;
+  inode *ino;
+  ext2dinode *dino;
+  uint reclen;
+  uint bno;
+  if (strlen(name) > EXT2_DIRENT_NAME_MAX)
+    return NULL;
+  if (!S_ISDIR(pi->mode))
+    return NULL;
+  if (pi->size % sb->bsize)
+    panic("wtf");
+  inum = allocinum(sb);
+  if (inum < 0)
+    return NULL;
+  dino = rawinode(sb, inum, &buf);
+  if (!dino)
+    return NULL;
+  dino->i_mode = mode;
+  dino->i_links_count = 1;
+  dino->i_blocks = 0;
+  dino->i_size = 0;
+  memset(dino->i_block, 0, sizeof dino->i_block);
+  // bwrite(sb, buf);
+  kfree(buf);
+  ino = iget(sb, inum);
+  if (!ino)
+    panic("ino");
+  // dirlink
+  for (uint b = 0; b <= pi->size / sb->bsize; b++) {
+    tmp = kmalloc(sb->bsize);
+    if (!tmp)
+      panic("tmp");
+    bno = ext2iblock(pi, b);
+    if (!bno)
+      goto err;
+    bread(sb, bno, tmp);
+    de = tmp;
+    if (de->rec_len == 0) {
+      de->rec_len = sb->bsize;
+      goto found;
+    }
+    for (uint off = 0; off < sb->bsize; off += de->rec_len) {
+      de = tmp + off;
+      if (de->inode != 0 &&
+          namelen == de->name_len &&
+          memcmp(name, de->name, de->name_len) == 0)
+        goto err; // EXIST
+      if (de->inode == 0 && de->rec_len >= EXT2_DIR_REC_LEN(namelen))
+        goto found;
+      if (de->rec_len >= EXT2_DIR_REC_LEN(de->name_len) + EXT2_DIR_REC_LEN(namelen))
+        goto found;
+    }
+    kfree(tmp);
+  }
+  panic("dirlink");
+found:
+  if (de->inode) {
+    de1 = (ext2dentry*)((char*)de + EXT2_DIR_REC_LEN(de->name_len));
+    de1->rec_len = de->rec_len - EXT2_DIR_REC_LEN(de->name_len);
+    de->rec_len = EXT2_DIR_REC_LEN(de->name_len);
+    de = de1;
+  }
+  de->name_len = namelen;
+  memcpy(de->name, name, namelen);
+  de->inode = inum;
+  bwrite(sb, bno, tmp);
+  kfree(tmp);
+  return ino;
+err:
+  kfree(tmp);
+  return NULL;
+}
+
 void
 ext2sync(inode *ino)
 {
 }
 
-int
+static int
 ext2iget(inode *ino)
 {
   ext2dinode *dino;
@@ -435,7 +604,7 @@ ext2iget(inode *ino)
   void *buf;
   dino = rawinode(sb, inum, &buf);
   if (!dino)
-    panic("ialloc");
+    panic("ext2iget");
   ei = kmalloc(sizeof *ei);
   if (!ei)
     return -1;
@@ -446,6 +615,10 @@ ext2iget(inode *ino)
   memcpy(ei->block, dino->i_block, sizeof ei->block);
   ino->readi = ext2readi;
   ino->writei = ext2writei;
+  if (S_ISDIR(ino->mode)) {
+    ino->lookup = ext2lookup;
+    ino->create = ext2create;
+  }
   ino->data = ei;
   kfree(buf);
   return 0;

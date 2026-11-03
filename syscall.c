@@ -2,11 +2,21 @@
 #include <sys.h>
 #include <asm.h>
 #include <syscall.h>
+#include <proc.h>
 
 #define ARG0  (tf->rdi)
 #define ARG1  (tf->rsi)
 #define ARG2  (tf->rdx)
 #define ARG3  (tf->rcx)
+
+static file*
+fdfile(int fd)
+{
+  proc *p = myproc();
+  if (fd < 16)
+    return p->openf[fd];
+  return NULL;
+}
 
 static ulong
 sysnull(trapframe *tf)
@@ -27,22 +37,25 @@ sysexec(trapframe *tf)
 static ulong
 sysread(trapframe *tf)
 {
-  if (!validate(ARG1, ARG2, 0))
+  file *f;
+  f = fdfile(ARG0);
+  if (!f)
     return -1;
-  return (ulong)-1;
+  if (!validate(ARG1, ARG2, 1))
+    return -1;
+  return (ulong)read(f, (void*)ARG1, ARG2);
 }
 
 static ulong
 syswrite(trapframe *tf)
 {
-  uint i;
+  file *f;
+  f = fdfile(ARG0);
+  if (!f)
+    return -1;
   if (!validate(ARG1, ARG2, 0))
     return -1;
-  // stub
-  for (i = 0; i < ARG2; i++) {
-    printk("%c", ((char*)ARG1)[i]);
-  }
-  return i;
+  return (ulong)write(f, (void*)ARG1, ARG2);
 }
 
 static ulong
@@ -56,7 +69,7 @@ sysexit(trapframe *tf)
 {
   int exitcode;
   exitcode = ARG0;
-  return exit(exitcode);
+  return (ulong)exit(exitcode);
 }
 
 static ulong
@@ -67,6 +80,23 @@ syswait(trapframe *tf)
   return wait((int*)ARG0);
 }
 
+static ulong
+sysopen(trapframe *tf)
+{
+  char name[128];
+  if (!validstr(ARG0, 128, 0))
+    return -1;
+  strcpy(name, (const char*)ARG0);
+  return open(name, (int)ARG1);
+}
+
+static ulong
+sysclose(trapframe *tf)
+{
+  return -1;
+  // return close((int)ARG0);
+}
+
 static ulong (*syscalls[NR_SYSCALL])(trapframe *tf) = {
   sysnull,
   sysexec,
@@ -75,6 +105,8 @@ static ulong (*syscalls[NR_SYSCALL])(trapframe *tf) = {
   sysfork,
   sysexit,
   syswait,
+  sysopen,
+  sysclose,
 };
 
 void

@@ -31,3 +31,13 @@ wait:
   movl $SYS_WAIT, %eax
   int $0x80
   ret
+.global open
+open:
+  movl $SYS_OPEN, %eax
+  int $0x80
+  ret
+.global close
+close:
+  movl $SYS_CLOSE, %eax
+  int $0x80
+  ret

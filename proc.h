@@ -8,12 +8,12 @@
 #include <lock.h>
 
 enum procstate {
-  DEAD,
+  NULLSTATE,
   NEWBORN,
   RUNNING,
   READY,
   BLOCKED,
-  ZOMBIE,
+  DEAD,
 };
 
 struct context {
@@ -30,12 +30,19 @@ struct cpu {
   int yield;
 };
 
+struct defunct {
+  uint pid;
+  int exitcode;
+  list ent;
+};
+
 struct proc {
   uint pid;
   procstate state;
   char name[16];
   page *kstackpage;
   inode *cwd;
+  file *openf[16];
   list ptable;
   list rq;
   pvm *vm;
@@ -43,7 +50,11 @@ struct proc {
   cpu *cpu;
   cpu *prevcpu;
   proc *parent;
+  spinlock lk;
+  uint nchild;
+  list exitq;
   waitpoint wait;
+  int exitcode;
   int (*kf)(void *ka);
   void *ka;
   trapframe *tf;

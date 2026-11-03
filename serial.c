@@ -39,7 +39,7 @@ serial_putc(char c)
 }
 
 int
-serial_getc(void)
+serialgetc(void)
 {
   if (coming())
     return inb(COM1 + DATA);
@@ -47,19 +47,26 @@ serial_getc(void)
     return -1;
 }
 
+static int
+serialintr(irq *irq)
+{
+  int c;
+  while ((c = serialgetc()) >= 0)
+    consintr(c);
+  return 0;
+}
+
 void
 serial_init(void)
 {
   u16 div = 1;  // baudrate 115200
-  char c, *s = "hello\n";
   outb(COM1 + IER, 0x0);
   outb(COM1 + FCR, 0x0);
   outb(COM1 + LCR, 0x80);
   outb(COM1 + DLL, div & 0xff);
   outb(COM1 + DLH, (div >> 8) & 0xff);
-  outb(COM1 + MCR, 0x3);
+  outb(COM1 + MCR, 0xb);
   outb(COM1 + LCR, 0x3);
+  newirq(ioapicen(4), lapiceoi, serialintr, NULL);
   outb(COM1 + IER, 0x1);
-  while ((c = *s++))
-    serial_putc(c);
 }

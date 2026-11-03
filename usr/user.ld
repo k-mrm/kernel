@@ -4,9 +4,10 @@ ENTRY(main)
 
 SECTIONS
 {
-  . = 0x1000 + SIZEOF_HEADERS;
-  .text   : { *(.text .text.*) }
-  .rodata : { *(.rodata .rodata.*) }
+  . = 0x1000;
+  .text   : { *(.text .text.*) *(.rodata .rodata.*) }
+  . = ALIGN(0x1000);
   .data   : { *(.data .data.*) }
+  . = ALIGN(0x1000);
   .bss    : { *(.bss .bss.*) *(COMMON) }
 }

@@ -71,16 +71,30 @@ void isync(inode*);
 int bread(superblock*, ulong, void*);
 int bwrite(superblock*, ulong, void*);
 inode *namei(char*, int);
+inode *createi(inode*, char*, u16);
+inode *lookup(inode*, char*);
+int mountsb(char*, superblock*);
+int devmount(void);
+// devfs.c
+typedef struct devinode devinode;
+superblock *devsuperblock(void);
+int devconsinit(devinode*);
+// file.c
+typedef struct file file;
+int read(file *f, void *buf, uint n);
+int write(file *f, void *buf, uint n);
+int open(char *path, int mode);
+file *fdup(file *f);
 // ext2.c
 void ext2superinit(superblock*);
-inode *ext2lookup(inode*, char*);
-int ext2iget(inode*);
-void ext2sync(inode*);
+// devfs.c
+void mountdevroot(void);
 // wait.c
 typedef struct waitpoint waitpoint;
 void waitinit(waitpoint*);
 // proc.c
 typedef enum procstate procstate;
+typedef struct defunct defunct;
 typedef struct proc proc;
 typedef struct context context;
 typedef struct cpu cpu;
@@ -96,6 +110,7 @@ proc *myproc(void);
 int exec(char*);
 int exit(int);
 int wait(int*);
+void yield(void);
 // kmalloc.c
 typedef struct mobj mobj;
 void kmallocinit(void);
@@ -108,7 +123,7 @@ typedef struct pvm pvm;
 void kernelmap(void);
 void *iomap(ulong base, ulong size);
 pvm *procvm(void);
-void *vmap(inode*, ulong, ulong, int, uint);
+void *vmap(inode*, ulong, ulong, ulong, int, uint);
 void vmswitch(void);
 int vmload(ulong, page*);
 void vmtextinit(ulong, ulong);
@@ -126,5 +141,7 @@ block *newblock(int (*)(block*, int, ulong, int, void*), void*);
 // ioapic.c
 int ioapicen(int);
 void ioapicinit(void);
+// syscall.c
+void syscall(trapframe*);
 
 #endif

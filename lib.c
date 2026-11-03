@@ -54,13 +54,15 @@ strcmp(const char *s1, const char *s2)
 int
 memcmp(const void *a, const void *b, uint n)
 {
-  const uchar *s1 = a; 
-  const uchar *s2 = b; 
-  while (*s1 == *s2 && n > 0) {
+  const uchar *s1 = a;
+  const uchar *s2 = b;
+  while (n > 0) {
+    if (*s1 != *s2)
+      return *s1 - *s2;
     s1++; s2++;
     n--;
   }
-  return *s1 - *s2;
+  return 0;
 }
 
 int
@@ -102,18 +104,17 @@ strtok (char *s1, const char *s2)
 {
   static char *save = "";
   char *s;
-  if (s1)
-    save = s1;
-  else
+  if (!s1)
     s1 = save;
-  s = s1;
-  while (*s1) {
-    if (strchr(s2, *s1)) {
-      *s1++ = 0;
-      save = s1;
-      return s;
-    }
+  while (*s1 && strchr(s2, *s1))
     s1++;
-  }
-  return NULL;
+  if (!*s1)
+    return NULL;
+  s = s1;
+  while (*s1 && !strchr(s2, *s1))
+    s1++;
+  if (*s1)
+    *s1++ = 0;
+  save = s1;
+  return s;
 }

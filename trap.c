@@ -215,11 +215,12 @@ pagefault(trapframe *tf)
 static void
 gpfault(trapframe *tf)
 {
-  ulong faultaddr = rdcr2();
   printk("GP: rip=%p cs=%p err=%p rsp=%p\n", tf->rip, tf->cs, tf->errcode, tf->rsp);
   printk("rax=%p rbx=%p rcx=%p rdx=%p\n", tf->rax, tf->rbx, tf->rcx, tf->rdx);
   printk("rsi=%p rdi=%p rbp=%p\n", tf->rsi, tf->rdi, tf->rbp);
-  panic("gp %p", faultaddr);
+  if (myproc())
+    printk("proc: %s\n", myproc()->name);
+  panic("gp");
 }
 
 void

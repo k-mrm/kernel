@@ -40,10 +40,18 @@
 #define S_ISCHR(_m)     (((_m) & S_IFMT) == S_IFCHR)
 #define S_ISFIFO(_m)    (((_m) & S_IFMT) == S_IFIFO)
 
-#define O_READ   0
-#define O_WRITE  1
-#define O_RDWR   2
-#define O_EXEC   3
+#define O_READ    0
+#define O_WRITE   1
+#define O_RDWR    2
+#define O_EXEC    3
+#define O_CREATE  0x10
+
+struct file {
+  inode *ino;
+  uint pos;
+  uint ref;
+  bool r, w;
+};
 
 struct superblock {
   block *dev;
@@ -55,6 +63,7 @@ struct superblock {
   inode *rooti;
   void *fssuper;
   uint bsize;
+  int (*iget)(inode*);
 };
 
 struct inode {
@@ -70,9 +79,14 @@ struct inode {
   int new;
   int err;
   int free;
+  int mount;
   void *data;
+  int (*open)(inode*, file*);
   int (*readi)(inode*, void*, uint, uint);
   int (*writei)(inode*, void*, uint, uint);
+  inode *(*lookup)(inode*, char*);
+  inode *(*create)(inode*, char*, u16);
+  void (*sync)(inode*);
 };
 
 #endif  
