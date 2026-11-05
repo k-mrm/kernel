@@ -18,6 +18,17 @@ fdfile(int fd)
   return NULL;
 }
 
+static int
+fdsetfile(int fd, file *f)
+{
+  proc *p = myproc();
+  if (fd < 16) {
+    p->openf[fd] = f;
+    return 0;
+  }
+  return -1;
+}
+
 static ulong
 sysnull(trapframe *tf)
 {
@@ -28,10 +39,27 @@ static ulong
 sysexec(trapframe *tf)
 {
   char name[128];
+  char *argv[16];
+  char *uarg;
   if (!validstr(ARG0, 128, 0))
     return -1;
   strcpy(name, (const char*)ARG0);
-  return (ulong)exec(name);
+  for (int i = 0; ; i++) {
+    if (!validate(ARG1 + i*8, 8, 0))
+      goto out;
+    uarg = *(char**)(ARG1 + i*8);
+    if (uarg == NULL) {
+      argv[i] = NULL;
+      break;
+    }
+    if (!validstr((ulong)uarg, 128, 0))
+      goto out;
+    argv[i] = kmalloc(strlen(uarg));
+    strcpy(argv[i], uarg);
+  }
+  return (ulong)exec(name, argv);
+out:
+  return -1;
 }
 
 static ulong
@@ -93,8 +121,36 @@ sysopen(trapframe *tf)
 static ulong
 sysclose(trapframe *tf)
 {
-  return -1;
-  // return close((int)ARG0);
+  file *f;
+  f = fdfile(ARG0);
+  if (!f)
+    return -1;
+  fdsetfile(ARG0, NULL);
+  return (ulong)close(f);
+}
+
+static ulong
+syspipe(trapframe *tf)
+{
+  int *fds = (int*)ARG0;
+  if (!validate((ulong)fds, sizeof(int)*2, 1))
+    return -1;
+  return (ulong)newpipe(fds);
+}
+
+static ulong
+sysdup2(trapframe *tf)
+{
+  file *f, *of;
+  f = fdfile(ARG0);
+  if (!f)
+    return -1;
+  of = fdfile(ARG1);
+  if (fdsetfile(ARG1, fdup(f)) < 0)
+    return -1;
+  if (of)
+    close(of);
+  return ARG1;
 }
 
 static ulong (*syscalls[NR_SYSCALL])(trapframe *tf) = {
@@ -107,6 +163,8 @@ static ulong (*syscalls[NR_SYSCALL])(trapframe *tf) = {
   syswait,
   sysopen,
   sysclose,
+  syspipe,
+  sysdup2,
 };
 
 void

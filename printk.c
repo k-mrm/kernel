@@ -87,6 +87,25 @@ printk(const char *fmt, ...)
   return n;
 }
 
+void
+backtrace(ulong rbp)
+{
+  ulong *frame;
+  ulong ret, prev;
+  printk("backtrace:\n");
+  for (int i = 0; i < 20; i++) {
+    if (rbp < 0xffff800000000000UL)
+      break;
+    frame = (ulong*)rbp;
+    prev = frame[0];
+    ret = frame[1];
+    printk("  [%d] rip=%p rbp=%p\n", i, ret, rbp);
+    if (prev <= rbp)
+      break;
+    rbp = prev;
+  }
+}
+
 void NORETURN
 panic(const char *fmt, ...)
 {

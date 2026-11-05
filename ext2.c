@@ -285,6 +285,45 @@ ext2iblock(inode *ino, uint no)
 }
 
 static int
+ext2readdir(inode *pi, dentry *dent)
+{
+  superblock *sb = pi->super;
+  ext2dentry *de;
+  void *tmp;
+  uint bno;
+  inode *ino;
+  uint reclen, n = 0;
+  if (!S_ISDIR(pi->mode))
+    return -1;
+  for (uint off = 0; off < pi->size; off += reclen, n++) {
+    tmp = kmalloc(sb->bsize);
+    if (!tmp)
+      panic("tmp");
+    bno = ext2iblock(pi, off / sb->bsize);
+    if (!bno) {
+      kfree(tmp);
+      return -1;
+    }
+    bread(sb, bno, tmp);
+    de = tmp + (off % sb->bsize);
+    if (de->rec_len == 0) {
+      kfree(tmp);
+      return 0;
+    }
+    if (dent->n == n) {
+      dent->ino = iget(sb, de->inode);
+      memcpy(dent->name, de->name, de->name_len);
+      dent->namelen = de->name_len;
+      kfree(tmp);
+      return 1;
+    }
+    reclen = de->rec_len;
+    kfree(tmp);
+  }
+  return 0;
+}
+
+static int
 ext2readi(inode *ino, void *buf, uint off, uint n)
 {
   superblock *sb = ino->super;
@@ -616,6 +655,7 @@ ext2iget(inode *ino)
   ino->readi = ext2readi;
   ino->writei = ext2writei;
   if (S_ISDIR(ino->mode)) {
+    ino->readdir = ext2readdir;
     ino->lookup = ext2lookup;
     ino->create = ext2create;
   }

@@ -29,6 +29,7 @@ void lapiceoi(irq*);
 // printk.c
 int printk(const char*, ...);
 void NORETURN panic(const char*, ...);
+void backtrace(ulong rbp);
 // page.c
 void pageinit1(ulong);
 page *allocpage(void);
@@ -59,6 +60,8 @@ char *strchr(const char *s, int c);
 char *strtok(char *s1, const char *s2);
 // fs.c
 typedef struct superblock superblock;
+typedef struct dentry dentry;
+typedef struct udentry udentry;
 typedef struct inode inode;
 inode *path2inode(char*);
 int writei(inode*, void*, uint, uint);
@@ -84,7 +87,9 @@ typedef struct file file;
 int read(file *f, void *buf, uint n);
 int write(file *f, void *buf, uint n);
 int open(char *path, int mode);
-file *fdup(file *f);
+int newpipe(int*);
+file *fdup(file*);
+int close(file*);
 // ext2.c
 void ext2superinit(superblock*);
 // devfs.c
@@ -107,7 +112,7 @@ void schedule(void);
 int fork(void);
 cpu *mycpu(void);
 proc *myproc(void);
-int exec(char*);
+int exec(char*, char**);
 int exit(int);
 int wait(int*);
 void yield(void);
@@ -143,5 +148,8 @@ int ioapicen(int);
 void ioapicinit(void);
 // syscall.c
 void syscall(trapframe*);
+// pipe.c
+superblock *pipesuperblock(void);
+int pipealloc(inode**, inode**);
 
 #endif

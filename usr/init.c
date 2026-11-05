@@ -23,8 +23,6 @@ main(void)
     printf("parent process %d\n", pid);
     wait(&wpid);
     printf("wait %d\n", wpid);
-    for (;;)
-      ;
   }
 }
 

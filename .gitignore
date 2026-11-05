@@ -63,3 +63,4 @@ dkms.conf
 .clang-format
 uinit
 bootblock
+rootfs/

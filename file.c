@@ -59,13 +59,9 @@ read(file *f, void *buf, uint n)
     return -1;
   ino = f->ino;
   mlock(&ino->mtx);
-  if (ino->readi) {
-    ret = ino->readi(ino, buf, f->pos, n);
-    if (ret >= 0)
-      f->pos += ret;
-  } else {
-    ret = -1;
-  }
+  ret = readi(ino, buf, f->pos, n);
+  if (ret >= 0)
+    f->pos += ret;
   munlock(&ino->mtx);
   return ret;
 }
@@ -79,15 +75,29 @@ write(file *f, void *buf, uint n)
     return -1;
   ino = f->ino;
   mlock(&ino->mtx);
-  if (ino->writei) {
-    ret = ino->writei(ino, buf, f->pos, n);
-    if (ret >= 0)
-      f->pos += ret;
-  } else {
-    ret = -1;
-  }
+  ret = writei(ino, buf, f->pos, n);
+  if (ret >= 0)
+    f->pos += ret;
   munlock(&ino->mtx);
   return ret;
+}
+
+int
+newpipe(int *fds)
+{
+  int fd1, fd2;
+  file *f1, *f2;
+  inode *ino1, *ino2;
+  if (pipealloc(&ino1, &ino2) < 0)
+    return -1;
+  f1 = filealloc(ino1, O_READ);
+  f2 = filealloc(ino2, O_WRITE);
+  fd1 = fdalloc(f1);
+  fd2 = fdalloc(f2);
+  if (fd1 < 0 || fd2 < 0)
+    return -1;
+  fds[0] = fd1; fds[1] = fd2;
+  return 0;
 }
 
 int
@@ -119,4 +129,22 @@ open(char *path, int mode)
     ino->open(ino, f);
   munlock(&ino->mtx);
   return fd;
+}
+
+int
+close(file *f)
+{
+  inode *ino;
+  if (!f)
+    return -1;
+  if (--f->ref > 0)
+    return 0;
+  ino = f->ino;
+  mlock(&ino->mtx);
+  if (ino->close)
+    ino->close(ino, f);
+  munlock(&ino->mtx);
+  iput(ino);
+  kfree(f);
+  return 0;
 }

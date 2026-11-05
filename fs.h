@@ -66,6 +66,19 @@ struct superblock {
   int (*iget)(inode*);
 };
 
+struct dentry {
+  inode *ino;   // mtx-ed
+  char name[256];
+  uint namelen;
+  uint n;
+};
+
+struct udentry {
+  char name[256];
+  int inum;
+  u16 mode;
+};
+
 struct inode {
   superblock *super;
   mutex mtx;
@@ -82,8 +95,10 @@ struct inode {
   int mount;
   void *data;
   int (*open)(inode*, file*);
+  int (*close)(inode*, file*);
   int (*readi)(inode*, void*, uint, uint);
   int (*writei)(inode*, void*, uint, uint);
+  int (*readdir)(inode*, dentry*);
   inode *(*lookup)(inode*, char*);
   inode *(*create)(inode*, char*, u16);
   void (*sync)(inode*);

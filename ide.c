@@ -38,6 +38,7 @@ struct idedisk {
 };
 
 struct idechan {
+  mutex op;
   spinlock lk;
   waitpoint wait;
   idedisk disk[2];
@@ -97,6 +98,7 @@ idebio(block *b, int write, ulong sect, int n, void *buf)
 {
   idedisk *d = b->data;
   idechan *c = d->chan;
+  mlock(&c->op);
   lock(&c->lk);
   diskwait(d);
   outb(cctl(c), 0);
@@ -116,6 +118,7 @@ idebio(block *b, int write, ulong sect, int n, void *buf)
     insw(cdata(c), buf, 512*n/2);
   }
   unlock(&c->lk);
+  munlock(&c->op);
   return 0;
 }
 
@@ -129,6 +132,7 @@ idechaninit(int c)
   chan = kmalloc(sizeof *chan);
   if (!chan)
     panic("idechan");
+  mtxinit(&chan->op);
   slockinit(&chan->lk);
   waitinit(&chan->wait);
   chan->reg = c == 0 ? 0x1f0 : 0x170;

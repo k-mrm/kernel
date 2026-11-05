@@ -81,7 +81,10 @@ devreadi(inode *ino, void *buf, uint off, uint n)
   int rc;
   devinode *di = ino->data;
   munlock(&ino->mtx);
-  rc = di->read(di, buf, off, n);
+  if (di->read)
+    rc = di->read(di, buf, off, n);
+  else
+    rc = -1;
   mlock(&ino->mtx);
   return rc;
 }
@@ -92,9 +95,40 @@ devwritei(inode *ino, void *buf, uint off, uint n)
   int rc;
   devinode *di = ino->data;
   munlock(&ino->mtx);
-  rc = di->write(di, buf, off, n);
+  if (di->write)
+    rc = di->write(di, buf, off, n);
+  else
+    rc = -1;
   mlock(&ino->mtx);
   return rc;
+}
+
+static int
+devopen(inode *ino, file *f)
+{
+  return -1;
+}
+
+static int
+devreaddir(inode *pi, dentry *dent)
+{
+  uint n = 0;
+  superblock *sb = pi->super;
+  devinode *dpi = pi->data;
+  devinode *d;
+  inode *ino;
+  LIST_FOREACH (d, &dpi->children, cent) {
+    if (dent->n == n) {
+      dent->ino = iget(sb, d->inum);
+      if (!dent->ino)
+        panic("devilookup");
+      memcpy(dent->name, d->name, sizeof(d->name));
+      dent->namelen = strlen(d->name);
+      return 1;
+    }
+    n++;
+  }
+  return 0;
 }
 
 static void
@@ -124,7 +158,9 @@ deviget(inode *ino)
   ino->blocks = 0;
   ino->readi = devreadi;
   ino->writei = devwritei;
+  ino->open = devopen;
   if (S_ISDIR(ino->mode)) {
+    ino->readdir = devreaddir;
     ino->lookup = devilookup;
     ino->create = devcreatei;
   }

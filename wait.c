@@ -6,5 +6,5 @@ void
 waitinit(waitpoint *w)
 {
   slockinit(&w->lk);
-  w->p = NULL;
+  linit(&w->waiters);
 }

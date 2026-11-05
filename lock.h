@@ -4,6 +4,7 @@
 #include <kernel.h>
 #include <asm.h>
 #include <sys.h>
+#include <list.h>
 
 struct spinlock {
   uint lock;
@@ -12,7 +13,7 @@ struct spinlock {
 
 struct waitpoint {
   spinlock lk;
-  proc *p;
+  list waiters;
 };
 
 #define SPINLOCK(_l)  spinlock _l = {0,NULL}

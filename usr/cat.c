@@ -15,21 +15,20 @@ cat(int fd)
 int
 main(int argc, char **argv)
 {
+  int fd;
+  char *p;
   if (argc < 2) {
     cat(0);
   } else {
-  /*
-    for(int i = 1; i < argc; i++) {
-      int fd;
-      char *p = argv[i];
-      if((fd = open(p, O_RDONLY)) < 0) {
+    for (int i = 1; i < argc; i++) {
+      p = argv[i];
+      if ((fd = open(p, O_READ)) < 0) {
         printf("%s: not found\n", p);
         exit(1);
       }
       cat(fd);
       close(fd);
     }
-    */
   }
   exit(0);
 }

@@ -208,8 +208,12 @@ pagefault(trapframe *tf)
   int err;
   ulong faultaddr = rdcr2();
   err = faultresume(tf, faultaddr, tf->errcode & 2, FROMUSER(tf));
-  if (err < 0)
+  if (err < 0) {
+    printk("rip=%p cs=%p err=%p rsp=%p\n", tf->rip, tf->cs, tf->errcode, tf->rsp);
+    printk("rax=%p rbx=%p rcx=%p rdx=%p\n", tf->rax, tf->rbx, tf->rcx, tf->rdx);
+    printk("rsi=%p rdi=%p rbp=%p\n", tf->rsi, tf->rdi, tf->rbp);
     panic("kernel pagefault %p", faultaddr);
+  }
 }
 
 static void

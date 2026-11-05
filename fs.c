@@ -189,14 +189,37 @@ createi(inode *pi, char *name, u16 mode)
 int
 readi(inode *ino, void *buf, uint off, uint n)
 {
-  return ino->readi(ino, buf, off, n);
+  udentry *ud;
+  dentry *d;
+  int rc;
+  if (S_ISDIR(ino->mode)) {
+    ud = buf;
+    if (n != sizeof(udentry))
+      return -1;
+    if (!ino->readdir)
+      return -1;
+    d = kmalloc(sizeof *d);
+    d->n = off;
+    rc = ino->readdir(ino, d);
+    if (rc <= 0)
+      return rc;
+    memcpy(ud->name, d->name, d->namelen);
+    ud->inum = d->ino->inum;
+    ud->mode = d->ino->mode;
+    kfree(d);
+    return rc;
+  } else
+    return ino->readi(ino, buf, off, n);
 }
 
 // must hold ino->mtx
 int
 writei(inode *ino, void *buf, uint off, uint n)
 {
-  return ino->writei(ino, buf, off, n);
+  if (S_ISDIR(ino->mode))
+    return -1;
+  else
+    return ino->writei(ino, buf, off, n);
 }
 
 int
@@ -229,6 +252,7 @@ int
 devmount(void)
 {
   mountsb("/dev", devsuperblock());
+  mountsb("/pipe", pipesuperblock());
   return 0;
 }
 

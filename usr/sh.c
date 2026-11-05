@@ -26,11 +26,6 @@ enum cmdtype {
 #define MAXTOK  128
 #define MAXBUF  256
 
-#define O_RDONLY  0
-#define O_WRONLY  1
-#define O_APPEND  (1 << 3)
-#define O_CREAT   (1 << 4)
-
 struct proc {
   bool used;
   char *args[MAXARG];
@@ -65,9 +60,6 @@ struct stream {
   int c;
   int n;
 };
-
-static inline int pipe(int *fd) { fd[0] = fd[1] = -1; return -1; }
-static inline int dup2(int a, int b) { return -1; }
 
 static proc procpool[NPROC];
 static cmd cmdpool[NCMD];
@@ -195,11 +187,11 @@ parseredir(stream *s, cmd *left, bool append, bool in)
     return NULL;
   }
   if (in)
-    flags = O_RDONLY;
+    flags = O_READ;
   else if (append)
-    flags = O_WRONLY | O_APPEND | O_CREAT;
+    flags = O_WRITE | O_APPEND | O_CREATE;
   else
-    flags = O_WRONLY | O_CREAT;
+    flags = O_WRITE | O_CREATE;
   fd = open(name, flags);
   if (fd < 0) {
     printf("open failed: %s\n", name);
@@ -318,11 +310,17 @@ static void
 runproc(proc *p)
 {
   if (p->infd != 0) {
-    dup2(p->infd, 0);
+    if (dup2(p->infd, 0) < 0) {
+      printf("dup2 i %d\n", p->infd);
+      exit(1);
+    }
     close(p->infd);
   }
   if (p->outfd != 1) {
-    dup2(p->outfd, 1);
+    if (dup2(p->outfd, 1) < 0) {
+      printf("dup2 o %d\n", p->outfd);
+      exit(1);
+    }
     close(p->outfd);
   }
   exec(p->args[0], (const char**)p->args);
@@ -338,7 +336,10 @@ execjob(void)
   int pid;
   for (p = proclist; p; p = p->next) {
     if (p->next) {
-      pipe(fd);
+      if (pipe(fd) < 0) {
+        printf("pipe failed\n");
+        exit(1);
+      }
       p->outfd = fd[1];
       p->next->infd = fd[0];
     }

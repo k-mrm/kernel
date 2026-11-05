@@ -7,4 +7,6 @@
 #define SYS_WAIT    6
 #define SYS_OPEN    7
 #define SYS_CLOSE   8
-#define NR_SYSCALL  9
+#define SYS_PIPE    9
+#define SYS_DUP2    10
+#define NR_SYSCALL  11

@@ -45,6 +45,7 @@ struct proc {
   file *openf[16];
   list ptable;
   list rq;
+  list wq;
   pvm *vm;
   ulong sp;
   cpu *cpu;

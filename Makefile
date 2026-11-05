@@ -3,7 +3,7 @@ CC = $(PREFIX)gcc
 LD = $(PREFIX)ld
 OBJCOPY = $(PREFIX)objcopy
 
-CFLAGS = -Wall -Og -g -MD -ffreestanding -nostdinc -nostdlib -nostartfiles
+CFLAGS = -Wall -Og -g -MD -ffreestanding -nostdinc -nostdlib -nostartfiles -fno-omit-frame-pointer
 CFLAGS += -I.
 LDFLAGS = -g -nostdlib -static --no-relax
 
@@ -20,7 +20,7 @@ endif
 
 OBJS = entry.o main.o proc.o seg.o serial.o swtch.o trap.o traphandler.o printk.o
 OBJS += page.o vm.o lib.o lapic.o kmalloc.o lock.o block.o ide.o ioapic.o wait.o
-OBJS += syscall.o fs.o ext2.o cons.o file.o devfs.o
+OBJS += syscall.o fs.o ext2.o cons.o file.o pipe.o devfs.o
 
 all: kernel.img user.img
 
@@ -68,7 +68,7 @@ rootfs/%: usr/%.c usr/syscall.S usr/user.ld usr/user.h usr/_lib.o
 
 user.img: $(USR_PROGS) $(shell find rootfs -type f)
 	@echo IMG $@
-	@mkdir -p rootfs/dev rootfs/proc
+	@mkdir -p rootfs/dev rootfs/proc rootfs/pipe
 	@dd if=/dev/zero of=$@ bs=1k count=1440 status=none
 	@mkfs.ext2 -d rootfs $@
 

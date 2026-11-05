@@ -95,7 +95,7 @@ sleep(waitpoint *w, spinlock *lk)
     panic("sleep");
   lock(&w->lk);
   unlock(lk);
-  w->p = p;
+  lappend(&w->waiters, &p->wq);
   p->state = BLOCKED;
   unlock(&w->lk);
   flags = irqsave();
@@ -107,14 +107,12 @@ sleep(waitpoint *w, spinlock *lk)
 void
 wakeup(waitpoint *w)
 {
-  proc *p;
+  proc *p, *tp;
   lock(&w->lk);
-  p = w->p;
-  if (!p)
-    goto end;
-  w->p = NULL;
-  ready(p);
-end:
+  LIST_FOREACH_SAFE (p, tp, &w->waiters, wq) {
+    ldelete(&p->wq);
+    ready(p);
+  }
   unlock(&w->lk);
 }
 
@@ -173,6 +171,12 @@ exit(int code)
   proc *pp;
   defunct *d;
   p->exitcode = code;
+  for (int i = 0; i < 16; i++) {
+    if (p->openf[i]) {
+      close(p->openf[i]);
+      p->openf[i] = NULL;
+    }
+  }
   if (p->kf)
     goto kexit;
   pp = p->parent;
@@ -235,10 +239,11 @@ freeproc(proc *p)
 }
 
 int
-exec(char *path)
+exec(char *path, char **argv)
 {
   proc *p = myproc();
-  page *sp;
+  page *sppage;
+  void *sp = (void*)USTACKTOP;
   inode *ino;
   pvm *vm = procvm();
   pvm *old = p->vm;
@@ -246,15 +251,17 @@ exec(char *path)
   phdr ph;
   ulong phoff;
   uint perm;
+  ulong ustack[16+1];
+  uint argc;
   ino = namei(path, O_EXEC);
   if (!ino)
     return -1;
-  sp = allocpage();
-  if (!sp)
+  sppage = allocpage();
+  if (!sppage)
     return -1;
   p->vm = vm;
   vmstackinit(USTACKTOP - 0x1000, 0x1000);
-  vmload(USTACKTOP - 0x1000, sp);
+  vmload(USTACKTOP - 0x1000, sppage);
   mlock(&ino->mtx);
   if (readi(ino, &eh, 0, sizeof eh) != sizeof eh)
     goto err;
@@ -280,9 +287,21 @@ exec(char *path)
   }
   munlock(&ino->mtx);
   iput(ino);
-  p->tf->rip = eh.e_entry;
-  p->tf->rsp = USTACKTOP;
   vmswitch();
+  for (argc = 0; argv[argc]; argc++) {
+    sp = (void*)((ulong)(sp - (strlen(argv[argc]) + 1)) & ~7);
+    memcpy(sp, argv[argc], strlen(argv[argc]) + 1);
+    ustack[argc] = sp;
+    kfree(argv[argc]);
+  }
+  ustack[argc] = 0;
+  sp -= (argc+1) * sizeof(ulong);
+  memcpy(sp, ustack, (argc+1) * sizeof(ulong));
+  strcpy(p->name, path);
+  p->tf->rip = eh.e_entry;
+  p->tf->rsp = (ulong)sp;
+  p->tf->rdi = argc;
+  p->tf->rsi = (ulong)sp;
   // freevm(old);
   return 0;
 err:

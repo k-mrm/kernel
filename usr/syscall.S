@@ -41,3 +41,13 @@ close:
   movl $SYS_CLOSE, %eax
   int $0x80
   ret
+.global pipe
+pipe:
+  movl $SYS_PIPE, %eax
+  int $0x80
+  ret
+.global dup2
+dup2:
+  movl $SYS_DUP2, %eax
+  int $0x80
+  ret

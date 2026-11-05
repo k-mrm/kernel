@@ -58,14 +58,24 @@ consintr(char c)
   if (c == 0)
     return;
   lock(&cons->lk);
-  if (cons->e - cons->r < 128){
-    c = (c == '\r') ? '\n' : c;
-    cons->buf[cons->e++ % 128] = c;
-    serial_putc(c); // echoback
-    if (c == '\n' || c == C('D') || cons->e == cons->r + 128) {
-      cons->w = cons->e;
-      wakeup(&cons->rwait);
-    }
+  switch (c) {
+    case '\x7f':
+      if (cons->e != cons->w) {
+        cons->e--;
+        serial_putc('\b');
+      }
+      break;
+    default:
+      if (cons->e - cons->r < 128){
+        c = (c == '\r') ? '\n' : c;
+        cons->buf[cons->e++ % 128] = c;
+        serial_putc(c); // echoback
+        if (c == '\n' || c == C('D') || cons->e == cons->r + 128) {
+          cons->w = cons->e;
+          wakeup(&cons->rwait);
+        }
+      }
+      break;
   }
   unlock(&cons->lk);
 }
