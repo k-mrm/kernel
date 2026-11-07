@@ -63,6 +63,8 @@ consintr(char c)
       if (cons->e != cons->w) {
         cons->e--;
         serial_putc('\b');
+        serial_putc(' ');
+        serial_putc('\b');
       }
       break;
     default:

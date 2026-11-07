@@ -9,10 +9,8 @@
 .global entry16
 entry16:
   cli
-
   call  gete820
-
-  addr32 lgdtl pa(entrygdt_p)
+  lgdtl %es:(pa(entrygdt_p) - 0x20000)
   movl  %cr0, %eax
   orl   $CR0_PE, %eax
   movl  %eax, %cr0
@@ -21,7 +19,7 @@ entry16:
 gete820:
   xorl  %ebx, %ebx
   movw  $(pa(e820) - 0x20000), %di
-  xorw  %si, %si
+  xorw  %bp, %bp
 1:
   movl  $0xe820, %eax
   movl  $0x534d4150, %edx
@@ -31,20 +29,22 @@ gete820:
   cmpl  $0x534d4150, %eax
   jne   2f
   addw  $20, %di
-  incw  %si
+  incw  %bp
+  cmpw  $32, %bp
+  jae   2f
   testl %ebx, %ebx
   jnz   1b
 2:
-  addr32 mov %si, pa(e820count)
+  movw  %bp, %es:(pa(e820count) - 0x20000)
   ret
 
 .code32
 .global entry32
 entry32:
   movw  $(SEG_KDATA32 << 3), %ax
-  movw  %ax, %ds 
-  movw  %ax, %es 
-  movw  %ax, %ss 
+  movw  %ax, %ds
+  movw  %ax, %es
+  movw  %ax, %ss
   xorw  %ax, %ax
   movw  %ax, %fs
   movw  %ax, %gs
@@ -52,10 +52,10 @@ entry32:
   // init sp
   movl  $0x7c00, %eax
   movl  %eax, %esp
-  
+
   call	cpuverify
   call	initpic
-  
+
   // enable PAE
   movl  %cr4, %eax
   orl   $CR4_PAE, %eax
@@ -67,14 +67,14 @@ entry32:
   rdmsr
   orl   $IA32_EFER_LME, %eax
   wrmsr
-  
+
   // enable paging
   mov   %cr0, %eax
   orl   $(CR0_PE | CR0_PG), %eax
   mov   %eax, %cr0
-  
+
   ljmpl $(SEG_KCODE << 3), $pa_trampoline64
-  
+
   hlt
 
 cpuverify:

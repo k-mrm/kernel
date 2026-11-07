@@ -4,22 +4,13 @@
 start:
   cli
   xorw  %ax, %ax
-  movw  %ax, %ds 
-  movw  %ax, %es 
-  movw  %ax, %ss 
-  // A20
-1:
-  inb   $0x64, %al
-  testb $0x2, %al
-  jnz   1b
-  movb  $0xd1, %al
-  outb  %al, $0x64
-2:
-  inb   $0x64, %al
-  testb $0x2, %al
-  jnz   2b
-  movb  $0xdf, %al
-  outb  %al, $0x60
+  movw  %ax, %ds
+  movw  %ax, %es
+  movw  %ax, %ss
+  // A20 via fast A20 (port 0x92)
+  inb   $0x92, %al
+  orb   $0x2, %al
+  outb  %al, $0x92
   // setup sp
   movl  $start, %esp
   // load kernel
@@ -34,7 +25,7 @@ loadboot:
   movw  %ax, %es    // addr += 512
   cmpl  $512, %ebx  // LBA <= 512
   jbe   loadboot
-  
+
   movw  $0x2000, %ax
   movw  %ax, %es
   ljmp  $0x2000, $0x0000

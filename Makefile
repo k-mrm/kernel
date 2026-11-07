@@ -87,12 +87,16 @@ QEMUOPTS = -nographic -drive file=kernel.img,index=0,media=disk,format=raw -driv
 qemu: kernel.img user.img
 	$(QEMU) $(QEMUOPTS)
 
-qemu-kvm: kernel.img
-	$(QEMU) -accel kvm -cpu host $(QEMUOPTS)
+qemu-kvm: kernel.img user.img
+	$(QEMU) -accel kvm -cpu qemu64 $(QEMUOPTS)
 
-qemu-gdb: kernel.img .gdbinit
+qemu-gdb: kernel.img user.img .gdbinit
 	@echo "Waiting for gdb on tcp::1234 ..."
 	$(QEMU) $(QEMUOPTS) -s -S
+
+qemu-kvm-gdb: kernel.img user.img .gdbinit
+	@echo "Waiting for gdb on tcp::1234 ..."
+	$(QEMU) -accel kvm -cpu qemu64 $(QEMUOPTS) -s -S
 
 gdb: kernel.elf .gdbinit
 	gdb kernel.elf

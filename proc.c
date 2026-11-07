@@ -80,6 +80,10 @@ ready(proc *p)
 {
   u64 flags = irqsave();
   lock(&runq_lk);
+  if (p->state == READY)
+    printk("WARN: double ready pid=%d name=%s\n", p->pid, p->name);
+  if (p->rq.next != NULL || p->rq.prev != NULL)
+    printk("WARN: ready while rq linked pid=%d state=%d\n", p->pid, p->state);
   p->state = READY;
   lappend(&runq, &p->rq);
   unlock(&runq_lk);
@@ -238,6 +242,42 @@ freeproc(proc *p)
   kfree(p);
 }
 
+static const char *
+statestr(procstate s)
+{
+  switch (s) {
+    case NULLSTATE: return "null";
+    case NEWBORN:   return "newborn";
+    case RUNNING:   return "running";
+    case READY:     return "ready";
+    case BLOCKED:   return "blocked";
+    case DEAD:      return "dead";
+  }
+  return "?";
+}
+
+void
+pdump(proc *p)
+{
+  int cpuid;
+  int ppid;
+  cpuid = p->cpu ? (int)p->cpu->id : -1;
+  ppid = p->parent ? (int)p->parent->pid : 0;
+  printk("%d\t%s\t%d\t%d\t%d\t%s\n",
+         p->pid, statestr(p->state), cpuid, ppid, p->nchild, p->name);
+}
+
+void
+ptabledump()
+{
+  proc *p;
+  printk("pid    state     cpu  ppid  nchild  name\n");
+  lock(&proctable_lk);
+  LIST_FOREACH (p, &proctable, ptable)
+    pdump(p);
+  unlock(&proctable_lk);
+}
+
 int
 exec(char *path, char **argv)
 {
@@ -358,7 +398,6 @@ yield(void)
   if (!p)
     panic("yield");
   mycpu()->yield = 0;
-  ready(p);
   swtch(&p->sp, &mycpu()->sched);
 }
 
@@ -366,9 +405,10 @@ static void
 reap(void)
 {
   proc *p = myproc();
-  if (!p)
-    panic("reap");
-  if (p->state == DEAD) {
+  p->cpu = NULL;
+  if (p->state == RUNNING) {
+    ready(p);
+  } else if (p->state == DEAD) {
     freeproc(p);
   }
 }
@@ -384,6 +424,11 @@ runloop:
     cli();
     lock(&runq_lk);
     LIST_FOREACH (p, &runq, rq) {
+      if (p->state != READY) {
+        ptabledump();
+        pdump(p);
+        panic("rq");
+      }
       if (!p->cpu)
         goto found;
     }
@@ -401,7 +446,6 @@ found:
   swtch(&c->sched, &p->sp);
   reap();
   c->current = NULL;
-  p->cpu = NULL;
   goto runloop;
 }
 
