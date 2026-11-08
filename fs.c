@@ -39,6 +39,22 @@ isync(inode *ino)
   ;
 }
 
+superblock*
+newsb(char *name, block *dev)
+{
+  superblock *sb;
+  sb = kmalloc(sizeof *sb);
+  if (!sb)
+    panic("sb");
+  sb->dev = dev;
+  linit(&sb->itable);
+  slockinit(&sb->lk);
+  waitinit(&sb->wait);
+  waitinit(&sb->freewait);
+  strcpy(sb->name, name);
+  return sb;
+}
+
 // locked sb
 static inode*
 findi(superblock *sb, int inum)
@@ -91,7 +107,7 @@ retry:
   ino->free = 0;
   lappend(&sb->itable, &ino->e);
   unlock(&sb->lk);
-  if (sb->iget(ino) < 0)
+  if (sb->iget && sb->iget(ino) < 0)
     err = 1;
   lock(&sb->lk);
   ino->new = 0;
@@ -249,10 +265,11 @@ mountsb(char *path, superblock *sb)
 }
 
 int
-devmount(void)
+vmount(void)
 {
   mountsb("/dev", devsuperblock());
   mountsb("/pipe", pipesuperblock());
+  mountsb("/proc", procsuperblock());
   return 0;
 }
 
@@ -321,6 +338,7 @@ traverse(inode *pi, char *path, char *name)
     munlock(&pi->mtx);
     iput(pi);
     pi = ino;
+    memset(name, 0, 256);
   }
   return pi;
 fail:

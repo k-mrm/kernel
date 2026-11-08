@@ -1,11 +1,24 @@
 #include <kernel.h>
 #include <sys.h>
+#include <asm.h>
+
+static void
+pputc(char c, char *_)
+{
+  serial_putc(c);
+}
+
+static void
+sputc(char c, char *p)
+{
+  *p = c;
+}
 
 static int
-printd(i64 v, int base, bool sign, void (*putc)(char))
+printd(i64 v, int base, bool sign, char *buf, void (*putc)(char, char*))
 {
-  char buf[sizeof(v) * 8 + 1] = {0};
-  char *end = buf + sizeof buf;
+  char tmp[sizeof(v) * 8 + 1] = {0};
+  char *end = tmp + sizeof tmp;
   char *cur = end - 1;
   bool neg;
   u64 num;
@@ -24,12 +37,12 @@ printd(i64 v, int base, bool sign, void (*putc)(char))
   if (neg)
     *--cur = '-';
   for (; (c = *cur) != 0; cur++, n++)
-    (*putc)(c);
+    (*putc)(c, buf+n);
   return n;
 }
 
 static int
-__printk(const char *fmt, va_list ap, void (*putc)(char))
+__printk(const char *fmt, va_list ap, char *buf, void (*putc)(char, char*))
 {
   int i, n = 0;
   char c, *s, cs;
@@ -42,37 +55,48 @@ __printk(const char *fmt, va_list ap, void (*putc)(char))
         break;
       switch (c) {
         case 'd':
-          n += printd(va_arg(ap, i32), 10, true, putc);
+          n += printd(va_arg(ap, i32), 10, true, buf+n, putc);
           break;
         case 'p':
-          (*putc)('0'); n++;
-          (*putc)('x'); n++;
+          (*putc)('0', buf+n); n++;
+          (*putc)('x', buf+n); n++;
           FALLTHROUGH;
         case 'x':
-          n += printd(va_arg(ap, u64), 16, false, putc);
+          n += printd(va_arg(ap, u64), 16, false, buf+n, putc);
           break;
         case 'c':
-          (*putc)(va_arg(ap, int)); n++;
+          (*putc)(va_arg(ap, int), buf+n); n++;
           break;
         case 's':
           s = va_arg(ap, char*);
           if (!s)
             s = "(null)";
           for (; (cs = *s) != 0; s++, n++)
-            (*putc)(cs);
+            (*putc)(cs, buf+n);
           break;
         case '%':
-          (*putc)('%'); n++;
+          (*putc)('%', buf+n); n++;
           break;
         default:
-          (*putc)('%'); n++;
-          (*putc)(c); n++;
+          (*putc)('%', buf+n); n++;
+          (*putc)(c, buf+n); n++;
           break;
       }
     } else {
-      (*putc)(c); n++;
+      (*putc)(c, buf+n); n++;
     }
   }
+  return n;
+}
+
+int
+sprintf(char *buf, const char *fmt, ...)
+{
+  va_list ap;
+  int n;
+  va_start(ap, fmt);
+  n = __printk(fmt, ap, buf, sputc);
+  va_end(ap);
   return n;
 }
 
@@ -82,7 +106,7 @@ printk(const char *fmt, ...)
   va_list ap;
   int n;
   va_start(ap, fmt);
-  n = __printk(fmt, ap, serial_putc);
+  n = __printk(fmt, ap, NULL, pputc);
   va_end(ap);
   return n;
 }
@@ -110,10 +134,10 @@ void NORETURN
 panic(const char *fmt, ...)
 {
   va_list ap;
-  asm volatile ("cli");
+  cli();
   printk("panic: ");
   va_start(ap, fmt);
-  __printk(fmt, ap, serial_putc);
+  __printk(fmt, ap, NULL, pputc);
   va_end(ap);
   printk("\n");
   for (;;)

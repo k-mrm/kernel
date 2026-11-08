@@ -28,6 +28,7 @@ uint lapicid(void);
 void lapiceoi(irq*);
 // printk.c
 int printk(const char*, ...);
+int sprintf(char*, const char*, ...);
 void NORETURN panic(const char*, ...);
 void backtrace(ulong rbp);
 // page.c
@@ -58,6 +59,12 @@ uint strlen(const char *s);
 char *strcpy(char *dst, const char *src);
 char *strchr(const char *s, int c);
 char *strtok(char *s1, const char *s2);
+// block.c
+typedef struct block block;
+block *getblock(char*);
+int __bread();
+int __bwrite();
+block *newblock(int (*)(block*, int, ulong, int, void*), void*);
 // fs.c
 typedef struct superblock superblock;
 typedef struct dentry dentry;
@@ -77,7 +84,8 @@ inode *namei(char*, int);
 inode *createi(inode*, char*, u16);
 inode *lookup(inode*, char*);
 int mountsb(char*, superblock*);
-int devmount(void);
+int vmount(void);
+superblock *newsb(char*, block*);
 // devfs.c
 typedef struct devinode devinode;
 superblock *devsuperblock(void);
@@ -116,6 +124,7 @@ int exec(char*, char**);
 int exit(int);
 int wait(int*);
 void yield(void);
+superblock *procsuperblock(void);
 // kmalloc.c
 typedef struct mobj mobj;
 void kmallocinit(void);
@@ -137,12 +146,6 @@ pvm *vmdup(void);
 int faultresume(trapframe*, ulong, int, int);
 bool validate(ulong addr, uint len, int wr);
 bool validstr(ulong addr, uint limit, int wr);
-// block.c
-typedef struct block block;
-block *getblock(char*);
-int __bread();
-int __bwrite();
-block *newblock(int (*)(block*, int, ulong, int, void*), void*);
 // ioapic.c
 int ioapicen(int);
 void ioapicinit(void);

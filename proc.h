@@ -42,6 +42,7 @@ struct proc {
   char name[16];
   page *kstackpage;
   inode *cwd;
+  inode *self;  // procinode
   file *openf[16];
   list ptable;
   list rq;

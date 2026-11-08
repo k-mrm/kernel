@@ -307,14 +307,13 @@ pipeclose(inode *ino, file *f)
 int
 pipealloc(inode **ip1, inode **ip2)
 {
-  char name1[16], name2[16];
   inode *rooti = pipesuper->rooti;
   inode *ino1, *ino2;
   pipeinode *p1, *p2;
   pipe *pipe;
   mlock(&rooti->mtx);
-  ino1 = createi(rooti, "pipe-0", S_IRUSR);
-  ino2 = createi(rooti, "pipe-1", S_IWUSR);
+  ino1 = createi(rooti, "pipe-r", S_IRUSR);
+  ino2 = createi(rooti, "pipe-w", S_IWUSR);
   munlock(&rooti->mtx);
   if (!ino1 || !ino2)
     return -1;
@@ -346,13 +345,14 @@ pipeiget(inode *ino)
   ino->nlink = 1;
   ino->size = 0;
   ino->blocks = 0;
-  ino->readi = pipereadi;
-  ino->writei = pipewritei;
-  ino->close = pipeclose;
   if (S_ISDIR(ino->mode)) {
     ino->readdir = pipereaddir;
     ino->lookup = pipeilookup;
     ino->create = pipecreatei;
+  } else {
+    ino->readi = pipereadi;
+    ino->writei = pipewritei;
+    ino->close = pipeclose;
   }
   ino->data = pi;
   return 0;

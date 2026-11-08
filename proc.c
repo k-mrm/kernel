@@ -9,6 +9,21 @@
 #include <elf.h>
 #include <fs.h>
 
+typedef struct procinode procinode;
+typedef int (*procop)(procinode*, void*, uint, uint);
+
+struct procinode {
+  procinode *ppi;
+  u16 mode;
+  char name[16];
+  uint inum;
+  list children;
+  list cent;
+  int pid;
+  int (*readop)(procinode*, void*, uint, uint);
+  int (*writeop)(procinode*, void*, uint, uint);
+};
+
 static LIST_HEAD(proctable);
 static SPINLOCK(proctable_lk);
 static int nextpid = 1;
@@ -17,9 +32,18 @@ static LIST_HEAD(runq);
 static SPINLOCK(runq_lk);
 static proc *proc0;
 static cpu cpu0;
+static superblock *procsuper;
+static procinode *procroot;
+static int nextprinum = 2;
 
 void uenter(ulong);
 void forkret(void);
+
+static int
+procinumalloc(void)
+{
+  return xadd(&nextprinum, 1);
+}
 
 static uint
 allocpid(void)
@@ -81,9 +105,7 @@ ready(proc *p)
   u64 flags = irqsave();
   lock(&runq_lk);
   if (p->state == READY)
-    printk("WARN: double ready pid=%d name=%s\n", p->pid, p->name);
-  if (p->rq.next != NULL || p->rq.prev != NULL)
-    printk("WARN: ready while rq linked pid=%d state=%d\n", p->pid, p->state);
+    panic("double ready pid=%d name=%s\n", p->pid, p->name);
   p->state = READY;
   lappend(&runq, &p->rq);
   unlock(&runq_lk);
@@ -124,6 +146,9 @@ static proc *
 allocproc(void)
 {
   proc *p;
+  inode *rooti;
+  inode *ino;
+  char name[16] = {0};
   p = kmalloc(sizeof *p);
   if (!p)
     return NULL;
@@ -139,6 +164,20 @@ allocproc(void)
   lock(&proctable_lk);
   lappend(&proctable, &p->ptable);
   unlock(&proctable_lk);
+  if (procsuper) {
+    sprintf(name, "%d", p->pid);
+    rooti = procsuper->rooti;
+    mlock(&rooti->mtx);
+    ino = createi(rooti, name, S_IRUSR|S_IFDIR);
+    munlock(&rooti->mtx);
+    if (ino) {
+      mlock(&ino->mtx);
+      createi(ino, "name", S_IRUSR);
+      createi(ino, "intr", S_IWUSR);
+      createi(ino, "stat", S_IRUSR);
+      munlock(&ino->mtx);
+    }
+  }
   return p;
 failed:
   kfree(p);
@@ -475,7 +514,7 @@ init0(void *_)
   memcpy(pageaddress(tp), _binary_uinit_start, isize);
   vmswitch();
   mountroot();
-  devmount();
+  vmount();
   proc0->cwd = path2inode("/");
   uenter(USTACKTOP);
   panic("init0 exit");
@@ -507,4 +546,303 @@ cpuinit(void)
   c->id = id;
   c->current = NULL;
   lappend(&cpus, &c->cpulist);
+}
+
+static int
+getpid(procinode *pi, void *buf, uint off, uint n)
+{
+  proc *p = myproc();
+  uint l, c = 0;
+  char tmp[32];
+  l = sprintf(tmp, "%d", p->pid);
+  n = MIN(l, n);
+  for (uint i = off; i < n; i++, c++) {
+    *((char*)buf + c) = tmp[i];
+  }
+  return c;
+}
+
+static int
+getppid(procinode *pi, void *buf, uint off, uint n)
+{
+  proc *p = myproc();
+  proc *pp = p->parent;
+  uint l, c = 0;
+  char tmp[32];
+  l = sprintf(tmp, "%d", pp->pid);
+  n = MIN(l, n);
+  for (uint i = off; i < n; i++, c++) {
+    *((char*)buf + c) = tmp[i];
+  }
+  return c;
+}
+
+static const char*
+procstatestr(procstate s)
+{
+  switch (s) {
+  case NEWBORN:  return "newborn";
+  case RUNNING:  return "running";
+  case READY:    return "ready";
+  case BLOCKED:  return "blocked";
+  case DEAD:     return "dead";
+  default:       return "null";
+  }
+}
+
+static int
+getprocname(procinode *pi, void *buf, uint off, uint n)
+{
+  proc *p = pid2proc(pi->ppi->pid);
+  uint l, c = 0;
+  char tmp[32];
+  if (!p)
+    return -1;
+  l = sprintf(tmp, "%s", p->name);
+  n = MIN(l, n);
+  for (uint i = off; i < n; i++, c++) {
+    *((char*)buf + c) = tmp[i];
+  }
+  return c;
+}
+
+static int
+getprocstat(procinode *pi, void *buf, uint off, uint n)
+{
+  proc *p = pid2proc(pi->ppi->pid);
+  uint l, c = 0;
+  char tmp[64];
+  if (!p)
+    return -1;
+  l = sprintf(tmp, "%d %d %s %s", p->pid, p->parent ? p->parent->pid : 0,
+              procstatestr(p->state), p->name);
+  n = MIN(l, n);
+  for (uint i = off; i < n; i++, c++) {
+    *((char*)buf + c) = tmp[i];
+  }
+  return c;
+}
+
+static uint
+atou(const char *name)
+{
+  int len = strlen(name);
+  uint n = 0, c;
+  if (len > 1 && *name == '0')
+    return ~0u;
+  do {
+    c = *name++ - '0';
+    if (c > 9)
+      return ~0u;
+    n *= 10;
+    n += c;
+  } while (--len > 0);
+  return n;
+}
+
+static inode*
+procilookup(inode *pi, char *name)
+{
+  superblock *sb = pi->super;
+  procinode *ppi = pi->data;
+  procinode *p;
+  inode *ino;
+  LIST_FOREACH (p, &ppi->children, cent) {
+    if (strcmp(p->name, name) == 0) {
+      ino = iget(sb, p->inum);
+      if (!ino)
+        panic("procilookup");
+      return ino;
+    }
+  }
+  return NULL;
+}
+
+static procinode*
+allocprocinode(procinode *ppi, char *name, u16 mode)
+{
+  procinode *p = kmalloc(sizeof *p);
+  p->mode = mode;
+  strcpy(p->name, name);
+  p->inum = procinumalloc();
+  linit(&p->children);
+  lappend(&ppi->children, &p->cent);
+  p->ppi = ppi;
+  return p;
+}
+
+static int
+getprocrootop(const char *name, procop *rop, procop *wop)
+{
+  if (strcmp(name, "pid") == 0) {
+    *rop = getpid; *wop = NULL;
+    return 0;
+  } else if (strcmp(name, "ppid") == 0) {
+    *rop = getppid; *wop = NULL;
+    return 0;
+  }
+  return -1;
+}
+
+static int
+getprocop(const char *name, procop *rop, procop *wop)
+{
+  if (strcmp(name, "name") == 0) {
+    *rop = getprocname; *wop = NULL;
+    return 0;
+  } else if (strcmp(name, "intr") == 0) {
+    *rop = NULL; *wop = NULL;
+    return 0;
+  } else if (strcmp(name, "stat") == 0) {
+    *rop = getprocstat; *wop = NULL;
+    return 0;
+  }
+  return -1;
+}
+
+static int
+procreadi(inode *ino, void *buf, uint off, uint n)
+{
+  procinode *pi = ino->data;
+  if (!pi->readop)
+    return -1;
+  return pi->readop(pi, buf, off, n);
+}
+
+static int
+procwritei(inode *ino, void *buf, uint off, uint n)
+{
+  procinode *pi = ino->data;
+  if (!pi->writeop)
+    return -1;
+  return pi->writeop(pi, buf, off, n);
+}
+
+static int
+procreaddir(inode *pi, dentry *dent)
+{
+  uint n = 0;
+  superblock *sb = pi->super;
+  procinode *ppi = pi->data;
+  procinode *p;
+  LIST_FOREACH (p, &ppi->children, cent) {
+    if (dent->n == n) {
+      dent->ino = iget(sb, p->inum);
+      if (!dent->ino)
+        panic("procreaddir");
+      memcpy(dent->name, p->name, sizeof(p->name));
+      dent->namelen = strlen(p->name);
+      return 1;
+    }
+    n++;
+  }
+  return 0;
+}
+
+static inode*
+proccreatei(inode *pari, char *name, u16 mode)
+{
+  superblock *sb = pari->super;
+  procinode *ppi = pari->data;
+  procinode *pi;
+  inode *ino;
+  pi = allocprocinode(ppi, name, mode);
+  if (!pi)
+    return NULL;
+  getprocop(name, &pi->readop, &pi->writeop);
+  ino = iget(sb, pi->inum);
+  if (!ino)
+    return NULL;
+  ino->mode = pi->mode;
+  ino->nlink = 1;
+  ino->size = 0;
+  ino->blocks = 0;
+  ino->readi = procreadi;
+  ino->writei = procwritei;
+  if (S_ISDIR(pi->mode)) {
+    ino->readdir = procreaddir;
+    ino->lookup = procilookup;
+    ino->create = proccreatei;
+  }
+  ino->data = pi;
+  return ino;
+}
+
+static inode*
+procrootcreatei(inode *rooti, char *name, u16 mode)
+{
+  superblock *sb = rooti->super;
+  inode *ino;
+  procinode *pi, *rootpi = rooti->data;
+  proc *proc;
+  uint pid;
+  pi = allocprocinode(rootpi, name, mode);
+  if (!pi)
+    return NULL;
+  pid = atou(name);
+  if (pid == ~0u) {
+    pi->pid = -1;
+    getprocrootop(name, &pi->readop, &pi->writeop);
+  } else {
+    proc = pid2proc(pid);
+    if (!proc)
+      goto out;
+    pi->pid = pid;
+    pi->readop = pi->writeop = NULL;
+  }
+  ino = iget(sb, pi->inum);
+  if (!ino)
+    goto out;
+  ino->mode = pi->mode;
+  ino->nlink = 1;
+  ino->size = 0;
+  ino->blocks = 0;
+  ino->readi = procreadi;
+  ino->writei = procwritei;
+  if (S_ISDIR(pi->mode)) {
+    ino->readdir = procreaddir;
+    ino->lookup = procilookup;
+    ino->create = proccreatei;
+  }
+  ino->data = pi;
+  return ino;
+out:
+  // free pi;
+  return NULL;
+}
+
+superblock*
+procsuperblock(void)
+{
+  inode *rooti;
+  procsuper = newsb("proc", NULL);
+  if (!procsuper)
+    panic("f");
+  procsuper->bsize = 0;
+  procsuper->fssuper = NULL;
+  // /proc
+  procroot = kmalloc(sizeof *procroot);
+  if (!procroot)
+    panic("procroot");
+  procroot->mode = S_IFDIR | S_IRUSR | S_IWUSR;
+  procroot->inum = 1;
+  linit(&procroot->children);
+  procroot->ppi = NULL;
+  rooti = iget(procsuper, 1);
+  if (!rooti)
+    panic("procsuper");
+  procsuper->rooti = rooti;
+  rooti->mode = procroot->mode;
+  rooti->nlink = 1;
+  rooti->size = 0;
+  rooti->blocks = 0;
+  rooti->readi = procreadi;
+  rooti->writei = procwritei;
+  rooti->readdir = procreaddir;
+  rooti->lookup = procilookup;
+  rooti->create = procrootcreatei;
+  rooti->data = procroot;
+  createi(rooti, "pid", S_IRUSR);
+  createi(rooti, "ppid", S_IRUSR);
+  return procsuper;
 }
