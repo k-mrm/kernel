@@ -32,4 +32,5 @@ void NORETURN
 apmain(void)
 {
   cpuinit();
+  kmain();
 }

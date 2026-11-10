@@ -114,7 +114,7 @@ idebio(block *b, int write, ulong sect, int n, void *buf)
     outsw(cdata(c), buf, 512*n/2);
   } else {
     outb(cstatus(c), n > 1 ? CMD_RDMUL : CMD_READ);
-    sleep(&c->wait, &c->lk);
+    sleep(&c->wait, &c->lk, false);
     insw(cdata(c), buf, 512*n/2);
   }
   unlock(&c->lk);

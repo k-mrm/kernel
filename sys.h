@@ -89,7 +89,10 @@ superblock *newsb(char*, block*);
 // devfs.c
 typedef struct devinode devinode;
 superblock *devsuperblock(void);
+// cons.c
+void consintr(char);
 int devconsinit(devinode*);
+int conssetpgrp(int);
 // file.c
 typedef struct file file;
 int read(file *f, void *buf, uint n);
@@ -111,7 +114,7 @@ typedef struct defunct defunct;
 typedef struct proc proc;
 typedef struct context context;
 typedef struct cpu cpu;
-void sleep(waitpoint*, spinlock*);
+int sleep(waitpoint*, spinlock*, bool);
 void wakeup(waitpoint*);
 void procinit(void);
 void cpu0init(void);
@@ -124,6 +127,10 @@ int exec(char*, char**);
 int exit(int);
 int wait(int*);
 void yield(void);
+int signal(proc*, int);
+int signalg(int, int);
+int setpgid(int, int);
+void sigcheck(void);
 superblock *procsuperblock(void);
 // kmalloc.c
 typedef struct mobj mobj;

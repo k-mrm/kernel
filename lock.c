@@ -86,7 +86,7 @@ mlock(mutex *m)
 {
   lock(&m->lk);
   while (m->lock)
-    sleep(&m->wait, &m->lk);
+    sleep(&m->wait, &m->lk, false);
   m->lock = 1;
   m->holder = myproc();
   unlock(&m->lk);

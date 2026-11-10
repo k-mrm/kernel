@@ -259,7 +259,7 @@ irqhandle(trapframe *tf)
 void
 trap(trapframe *tf)
 {
-  int err = 0;
+  int err = 0, is0x80 = 0;
   switch (tf->trapno) {
     case E_PF:
       pagefault(tf);
@@ -268,18 +268,21 @@ trap(trapframe *tf)
       gpfault(tf);
       break;
     case 0x80:
+      is0x80 = 1;
       if (!myproc())
         panic("syscall");
       myproc()->tf = tf;
       syscall(tf);
-      return;
+      break;
     default:
       err = irqhandle(tf);
       if (err < 0)
         panic("irq %d", tf->trapno);
       break;
   }
-  if (myproc() && mycpu()->yield)
+  if (FROMUSER(tf))
+    sigcheck();
+  if (!is0x80 && myproc() && mycpu()->yield)
     yield();
 }
 

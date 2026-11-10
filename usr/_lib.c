@@ -92,6 +92,27 @@ printf(const char *fmt, ...)
   return n;
 }
 
+static char *sptr;
+
+static void
+sputc(char c)
+{
+  *sptr++ = c;
+}
+
+int
+sprintf(char *buf, const char *fmt, ...)
+{
+  va_list ap;
+  int n;
+  sptr = buf;
+  va_start(ap, fmt);
+  n = __printf(fmt, ap, sputc);
+  va_end(ap);
+  *sptr = 0;
+  return n;
+}
+
 void*
 memcpy(void *dst, const void *src, ulong n)
 {

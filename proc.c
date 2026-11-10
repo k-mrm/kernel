@@ -38,6 +38,7 @@ static int nextprinum = 2;
 
 void uenter(ulong);
 void forkret(void);
+static uint atou(const char*);
 
 static int
 procinumalloc(void)
@@ -92,7 +93,7 @@ proc *
 myproc(void)
 {
   proc *p;
-  u64 flags;
+  ulong flags;
   flags = irqsave();
   p = mycpu()->current;
   irqrestore(flags);
@@ -102,7 +103,7 @@ myproc(void)
 static void
 ready(proc *p)
 {
-  u64 flags = irqsave();
+  ulong flags = irqsave();
   lock(&runq_lk);
   if (p->state == READY)
     panic("double ready pid=%d name=%s\n", p->pid, p->name);
@@ -112,22 +113,35 @@ ready(proc *p)
   irqrestore(flags);
 }
 
-void
-sleep(waitpoint *w, spinlock *lk)
+int
+sleep(waitpoint *w, spinlock *lk, bool intr)
 {
   proc *p = myproc();
-  u64 flags;
+  ulong flags;
   if (!p)
     panic("sleep");
   lock(&w->lk);
+  lock(&p->wlock);
+  if (intr && p->sigpend) {
+    unlock(&p->wlock);
+    unlock(&w->lk);
+    return -1;
+  }
   unlock(lk);
   lappend(&w->waiters, &p->wq);
+  if (intr)
+    p->waiting = w;
   p->state = BLOCKED;
+  unlock(&p->wlock);
   unlock(&w->lk);
   flags = irqsave();
   swtch(&p->sp, &mycpu()->sched);
   irqrestore(flags);
   lock(lk);
+  if (intr && p->sigpend)
+    return -1;
+  else
+    return 0;
 }
 
 void
@@ -137,12 +151,15 @@ wakeup(waitpoint *w)
   lock(&w->lk);
   LIST_FOREACH_SAFE (p, tp, &w->waiters, wq) {
     ldelete(&p->wq);
+    lock(&p->wlock);
+    p->waiting = NULL;
     ready(p);
+    unlock(&p->wlock);
   }
   unlock(&w->lk);
 }
 
-static proc *
+static proc*
 allocproc(void)
 {
   proc *p;
@@ -161,6 +178,9 @@ allocproc(void)
   waitinit(&p->wait);
   linit(&p->exitq);
   slockinit(&p->lk);
+  slockinit(&p->wlock);
+  slockinit(&p->siglock);
+  p->sig = 0; p->sigpend = false;
   lock(&proctable_lk);
   lappend(&proctable, &p->ptable);
   unlock(&proctable_lk);
@@ -173,10 +193,11 @@ allocproc(void)
     if (ino) {
       mlock(&ino->mtx);
       createi(ino, "name", S_IRUSR);
-      createi(ino, "intr", S_IWUSR);
+      createi(ino, "signal", S_IWUSR);
       createi(ino, "stat", S_IRUSR);
       munlock(&ino->mtx);
     }
+    p->self = ino;
   }
   return p;
 failed:
@@ -195,8 +216,12 @@ wait(int *status)
     unlock(&p->lk);
     return -1;
   }
-  while (lempty(&p->exitq))
-    sleep(&p->wait, &p->lk);
+  while (lempty(&p->exitq)) {
+    if (sleep(&p->wait, &p->lk, true) < 0) {
+      unlock(&p->lk);
+      return -1;
+    }
+  }
   d = LIST_TOP(&p->exitq, defunct, ent);
   ldelete(&d->ent);
   unlock(&p->lk);
@@ -238,6 +263,99 @@ kexit:
   cli();
   swtch(&p->sp, &mycpu()->sched);
   panic("exit");
+}
+
+int
+signalg(int pgid, int sig)
+{
+  proc *p;
+  if (!pgid)
+    return -1;
+  lock(&proctable_lk);
+  LIST_FOREACH (p, &proctable, ptable) {
+    if (p->pgid == pgid)
+      signal(p, sig);
+  }
+  unlock(&proctable_lk);
+  return 0;
+}
+
+int
+signal(proc *p, int sig)
+{
+  proc *cp, *tp;
+  waitpoint *w;
+  if (!sig)
+    return -1;
+  lock(&p->siglock);
+  if (!p->sig)
+    p->sig = sig;
+  p->sigpend = 1;
+  unlock(&p->siglock);
+  for (;;) {
+    lock(&p->wlock);
+    w = p->waiting;
+    if (!w)
+      break;
+    if (trylock(&w->lk)) {
+      LIST_FOREACH_SAFE (cp, tp, &w->waiters, wq) {
+        if (cp == p)
+          goto found;
+      }
+      panic("signal");
+found:
+      ldelete(&p->wq);
+      p->waiting = NULL;
+      ready(p);
+      unlock(&w->lk);
+      break;
+    }
+    unlock(&p->wlock);
+  }
+  unlock(&p->wlock);
+  return 0;
+}
+
+static const char*
+sigstr(int sig)
+{
+  switch (sig) {
+    case SIGKILL: return "kill";
+    case SIGSEGV: return "segv";
+    case SIGINT: return "int";
+  }
+  return "?";
+}
+
+void
+sigcheck(void)
+{
+  proc *p = myproc();
+  int sig;
+  if (!p)
+    return;
+  lock(&p->siglock);
+  sig = p->sig;
+  unlock(&p->siglock);
+  if (!sig)
+    return;
+  printk("%s: signal: %s\n", myproc()->name, sigstr(sig));
+  exit(-sig);
+}
+
+int
+setpgid(int pid, int pgid)
+{
+  proc *p = myproc();
+  if (pid == 0)
+    pid = p->pid;
+  if (pgid == 0)
+    pgid = pid;
+  p = pid2proc(pid);
+  if (!p)
+    return -1;
+  p->pgid = pgid;
+  return 0;
 }
 
 static void
@@ -577,19 +695,6 @@ getppid(procinode *pi, void *buf, uint off, uint n)
   return c;
 }
 
-static const char*
-procstatestr(procstate s)
-{
-  switch (s) {
-  case NEWBORN:  return "newborn";
-  case RUNNING:  return "running";
-  case READY:    return "ready";
-  case BLOCKED:  return "blocked";
-  case DEAD:     return "dead";
-  default:       return "null";
-  }
-}
-
 static int
 getprocname(procinode *pi, void *buf, uint off, uint n)
 {
@@ -615,12 +720,31 @@ getprocstat(procinode *pi, void *buf, uint off, uint n)
   if (!p)
     return -1;
   l = sprintf(tmp, "%d %d %s %s", p->pid, p->parent ? p->parent->pid : 0,
-              procstatestr(p->state), p->name);
+              statestr(p->state), p->name);
   n = MIN(l, n);
   for (uint i = off; i < n; i++, c++) {
     *((char*)buf + c) = tmp[i];
   }
   return c;
+}
+
+static int
+setprocsig(procinode *pi, void *buf, uint off, uint n)
+{
+  uint sig;
+  int rc = -1;
+  proc *p = pid2proc(pi->ppi->pid);
+  char tmp[32] = {0};
+  if (!p)
+    return rc;
+  n = MIN(n, 31); 
+  memcpy(tmp, buf, n);
+  sig = atou(tmp); 
+  if (sig == ~0u)
+    return rc;
+  if (sig && sig < NR_SIG)
+    rc = signal(p, sig);
+  return rc;
 }
 
 static uint
@@ -690,8 +814,8 @@ getprocop(const char *name, procop *rop, procop *wop)
   if (strcmp(name, "name") == 0) {
     *rop = getprocname; *wop = NULL;
     return 0;
-  } else if (strcmp(name, "intr") == 0) {
-    *rop = NULL; *wop = NULL;
+  } else if (strcmp(name, "signal") == 0) {
+    *rop = NULL; *wop = setprocsig;
     return 0;
   } else if (strcmp(name, "stat") == 0) {
     *rop = getprocstat; *wop = NULL;

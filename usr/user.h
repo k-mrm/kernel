@@ -12,6 +12,8 @@
 #define SYS_CLOSE   8
 #define SYS_PIPE    9
 #define SYS_DUP2    10
+#define SYS_SETPGID 11
+#define SYS_SETPGRP 12
 
 #ifndef __ASSEMBLER__
 
@@ -25,6 +27,8 @@ int open(char*, int);
 int close(int);
 int pipe(int*);
 int dup2(int, int);
+int setpgid(int, int);
+int setpgrp(int);
 
 #define NULL	((void *)0)
 
@@ -43,6 +47,7 @@ typedef unsigned char uchar;
 #define va_copy(d, s)   __builtin_va_copy (d, s)
 
 int printf(const char *fmt, ...);
+int sprintf(char *buf, const char *fmt, ...);
 void *memcpy(void*, const void*, ulong);
 void *memmove(void*, const void*, ulong);
 void *memset(void*, int, ulong);

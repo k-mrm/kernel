@@ -230,13 +230,7 @@ faultresume(trapframe *tf, ulong addr, int wr, int user)
   seg = vaseg(addr);
   if (!seg) {
     if (myproc()) {
-      printk("rip=%p cs=%p err=%p rsp=%p\n", tf->rip, tf->cs, tf->errcode, tf->rsp);
-      printk("rax=%p rbx=%p rcx=%p rdx=%p\n", tf->rax, tf->rbx, tf->rcx, tf->rdx);
-      printk("rsi=%p rdi=%p rbp=%p\n", tf->rsi, tf->rdi, tf->rbp);
-      if (!user)
-        backtrace(tf->rbp);
-      panic("%s: sigsegv from %s %p", myproc()->name, user ? "user" : "kernel", addr);
-      ret = -1;
+      signal(myproc(), SIGSEGV);
       goto end;
     } else {
       printk("rip=%p cs=%p err=%p rsp=%p\n", tf->rip, tf->cs, tf->errcode, tf->rsp);

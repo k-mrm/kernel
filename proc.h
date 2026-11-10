@@ -36,8 +36,17 @@ struct defunct {
   list ent;
 };
 
+enum {
+  SIGNULL = 0,
+  SIGKILL = 1,
+  SIGSEGV = 2,
+  SIGINT  = 3,
+  NR_SIG,
+};
+
 struct proc {
   uint pid;
+  uint pgid;
   procstate state;
   char name[16];
   page *kstackpage;
@@ -56,6 +65,11 @@ struct proc {
   uint nchild;
   list exitq;
   waitpoint wait;
+  spinlock wlock;
+  waitpoint *waiting;
+  spinlock siglock;
+  int sig;
+  bool sigpend;
   int exitcode;
   int (*kf)(void *ka);
   void *ka;

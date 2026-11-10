@@ -64,7 +64,7 @@ retry:
   LIST_FOREACH (ino, &sb->itable, e) {
     if (ino->inum == inum) {
       if (ino->free) {
-        sleep(&sb->freewait, &sb->lk);
+        sleep(&sb->freewait, &sb->lk, false);
         goto retry;
       }
       if (ino->ref == 0 || ino->err)
@@ -86,7 +86,7 @@ retry:
   ino = findi(sb, inum);
   if (ino) {
     while (ino->new)
-      sleep(&sb->wait, &sb->lk);
+      sleep(&sb->wait, &sb->lk, false);
     if (ino->err) {
       __iput(ino);
       goto retry;
@@ -319,7 +319,7 @@ static inode*
 traverse(inode *pi, char *path, char *name)
 {
   int err;
-  inode *ino;
+  inode *ino, *nino;
   memset(name, 0, 256);
   while ((path = pathname(path, name, &err)) != NULL) {
     mlock(&pi->mtx);
@@ -331,9 +331,11 @@ traverse(inode *pi, char *path, char *name)
     if (!ino)
       goto fail;
     if (ino->mount) {
-      ino = mountpoint(ino);
-      if (!ino)
+      nino = mountpoint(ino);
+      iput(ino);
+      if (!nino)
         goto fail;
+      ino = nino;
     }
     munlock(&pi->mtx);
     iput(pi);

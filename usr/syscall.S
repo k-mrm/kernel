@@ -51,3 +51,13 @@ dup2:
   movl $SYS_DUP2, %eax
   int $0x80
   ret
+.global setpgid
+setpgid:
+  movl $SYS_SETPGID, %eax
+  int $0x80
+  ret
+.global setpgrp
+setpgrp:
+  movl $SYS_SETPGRP, %eax
+  int $0x80
+  ret

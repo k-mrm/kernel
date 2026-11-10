@@ -96,7 +96,7 @@ static void
 pipelock(pipe *p)
 {
   while (p->plock)
-    sleep(&p->pwait, &p->lk);
+    sleep(&p->pwait, &p->lk, false);
   p->plock = 1;
 }
 
@@ -167,7 +167,10 @@ pread(pipe *pipe, void *buf, uint n)
       }
       pipeunlock(pipe);
       pipe->wantrd = 1;
-      sleep(&pipe->rwait, &pipe->lk);
+      if (sleep(&pipe->rwait, &pipe->lk, true) < 0) {
+        unlock(&pipe->lk);
+        return -1;
+      }
       pipelock(pipe);
     }
   }
@@ -211,7 +214,10 @@ pwrite(pipe *pipe, void *buf, uint n)
       }
       pipeunlock(pipe);
       pipe->wantwr = 1;
-      sleep(&pipe->wwait, &pipe->lk);
+      if (sleep(&pipe->wwait, &pipe->lk, true) < 0) {
+        unlock(&pipe->lk);
+        return -1;
+      }
       pipelock(pipe);
     }
   }

@@ -333,7 +333,7 @@ execjob(void)
 {
   proc *p;
   int fd[2];
-  int pid;
+  int pid, pgid = 0;
   for (p = proclist; p; p = p->next) {
     if (p->next) {
       if (pipe(fd) < 0) {
@@ -344,14 +344,21 @@ execjob(void)
       p->next->infd = fd[0];
     }
     pid = fork();
-    if (pid == 0)
+    if (pid == 0) {
+      setpgid(0, pgid);
       runproc(p);
+    }
     p->pid = pid;
+    if (pgid == 0)
+      pgid = pid;
+    setpgid(pid, pgid);
     if (p->infd != 0)
       close(p->infd);
     if (p->outfd != 1)
       close(p->outfd);
   }
+  if (pgid)
+    setpgrp(pgid);
 }
 
 static void
@@ -361,6 +368,7 @@ waitjob(void)
   int status;
   for (p = proclist; p; p = p->next)
     wait(&status);
+  setpgrp(0);
 }
 
 static char *
@@ -381,6 +389,8 @@ main(void)
   cmd *c;
   char buf[MAXBUF];
   char *s;
+  setpgid(0, 0);
+  setpgrp(0);
   for (;;) {
     printf("$ ");
     s = readcmd(buf);

@@ -9,4 +9,6 @@
 #define SYS_CLOSE   8
 #define SYS_PIPE    9
 #define SYS_DUP2    10
-#define NR_SYSCALL  11
+#define SYS_SETPGID 11
+#define SYS_SETPGRP 12
+#define NR_SYSCALL  13

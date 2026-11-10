@@ -153,6 +153,18 @@ sysdup2(trapframe *tf)
   return ARG1;
 }
 
+static ulong
+syssetpgid(trapframe *tf)
+{
+  return (ulong)setpgid(ARG0, ARG1);
+}
+
+static ulong
+syssetpgrp(trapframe *tf)
+{
+  return (ulong)conssetpgrp(ARG0);
+}
+
 static ulong (*syscalls[NR_SYSCALL])(trapframe *tf) = {
   sysnull,
   sysexec,
@@ -165,6 +177,8 @@ static ulong (*syscalls[NR_SYSCALL])(trapframe *tf) = {
   sysclose,
   syspipe,
   sysdup2,
+  syssetpgid,
+  syssetpgrp,
 };
 
 void
